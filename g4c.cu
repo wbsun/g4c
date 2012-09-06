@@ -3,6 +3,21 @@
 #include <stdlib.h>
 #include "g4c.h"
 
+static const char *G4C_SEMCPY = "GPU memory copy failed";
+static const char *G4C_SEKERNEL = "GPU kernel launch or execution failed";
+static const char *G4C_SENOTEXIST = "no such error";
+
+extern "C" const char *g4c_strerror(int err) {
+	switch(err) {
+	case G4C_EMCPY:
+		return G4C_SEMCPY;
+	case G4C_EKERNEL:
+		return G4C_SEKERNEL;
+	default:
+		return G4C_SENOEXIST;
+	}
+}
+
 #ifndef NR_STREAM
 #define NR_STREAM 8
 #endif

@@ -25,7 +25,8 @@ extern "C" const char *g4c_strerror(int err) {
 static cudaStream_t streams[NR_STREAM];
 
 #define csc(...) _cuda_safe_call(__VA_ARGS__, __FILE__, __LINE__)
-static cudaError_t _cuda_safe_call(cudaError_t e, const char *file, int line) {
+static cudaError_t
+_cuda_safe_call(cudaError_t e, const char *file, int line) {
     if (e!=cudaSuccess) {
 	fprintf(stderr, "g4c Error: %s %d %s\n",
 		file, line, cudaGetErrorString(e));
@@ -45,12 +46,14 @@ __global__ void stuff_kernel(void *in, void *out, int n) {
 }
 
 
-extern "C" int g4c_init(void) {
+extern "C" int
+g4c_init(void) {
 	int i;
 
 	// Enable memory map, and spin CPU thread when waiting for sync to
 	// decrease latency.
-	csc( cudaSetDeviceFlags( cudaDeviceScheduleSpin|cudaDeviceMapHost ) );
+	csc( cudaSetDeviceFlags(
+		     cudaDeviceScheduleSpin|cudaDeviceMapHost ) );
 
 	// Create streams
 	for (i=0; i<NR_STREAM; i++) {
@@ -60,7 +63,8 @@ extern "C" int g4c_init(void) {
 	return 0;
 }
 
-extern "C" void g4c_exit(void) {
+extern "C" void
+g4c_exit(void) {
 	int i;
 
 	for (i=0; i<NR_STREAM; i++) {
@@ -68,7 +72,8 @@ extern "C" void g4c_exit(void) {
 	}
 }
 
-extern "C" void* g4c_malloc(size_t sz) {
+extern "C"
+void* g4c_malloc(size_t sz) {
 	void *p;
 	
 	csc( cudaHostAlloc(&p, sz,
@@ -77,18 +82,21 @@ extern "C" void* g4c_malloc(size_t sz) {
 	return p;
 }
 
-extern "C" void g4c_free(void *p) {
+extern "C" void
+g4c_free(void *p) {
 	csc( cudaFreeHost(p) );
 }
 
-extern "C" int g4c_do_stuff_sync(void *in, void *out, int n) {
+extern "C" int
+g4c_do_stuff_sync(void *in, void *out, int n) {
 	stuff_kernel<<<n/32, 32>>>(in, out, n);
 	csc( cudaThreadSynchronize() );
 
 	return 0;
 }
 
-extern "C" int g4c_do_stuff_async(void *in, void *out, int n, g4c_async_t *adata) {
+extern "C" int
+g4c_do_stuff_async(void *in, void *out, int n, g4c_async_t *adata) {
 	adata->stream = 0;
 
 	stuff_kernel<<<n/32, 32, 0, streams[0]>>>(in, out, n);
@@ -96,7 +104,8 @@ extern "C" int g4c_do_stuff_async(void *in, void *out, int n, g4c_async_t *adata
 	return 0;
 }
 
-extern "C" int g4c_check_async_done(g4c_async_t *adata) {
+extern "C" int
+g4c_check_async_done(g4c_async_t *adata) {
 	cudaError_t e = cudaStreamQuery(streams[adata->stream]);
 	if (e == cudaSuccess) {
 		return 1;

@@ -1,16 +1,16 @@
 #ifndef __G4C_H__
 #define __G4C_H__
 
-typedef struct {
-	int stream;
-} g4c_async_t;
-
-#define G4C_EMCPY -10000
-#define G4C_EKERNEL -10001
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+	typedef struct {
+		int stream;
+	} g4c_async_t;
+
+#define G4C_EMCPY -10000
+#define G4C_EKERNEL -10001
 
 	int g4c_init(void);
 	void g4c_exit(void);

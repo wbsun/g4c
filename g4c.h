@@ -4,6 +4,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+	
+#define __round_mask(x, y) ((__typeof__(x))((y)-1))
+#define g4c_round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
+#define g4c_round_down(x, y) ((x) & ~__round_mask(x, y))
 
 	typedef struct {
 		int stream;

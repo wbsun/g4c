@@ -18,6 +18,7 @@ ac: ac.o
 
 clean-ac:
 	rm -f ac.o
+	rm -f ac
 
 clean: clean-ac clean-main
 	rm -f *.o *.so

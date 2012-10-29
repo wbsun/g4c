@@ -9,6 +9,9 @@ extern "C" {
 #define g4c_round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
 #define g4c_round_down(x, y) ((x) & ~__round_mask(x, y))
 
+#define G4C_PAGE_SIZE 4096
+#define G4C_MEM_ALIGN 32
+
 	typedef struct {
 		int stream;
 	} g4c_async_t;

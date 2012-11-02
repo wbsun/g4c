@@ -14,6 +14,8 @@ extern "C" {
 
 #define g4c_to_volatile(x) (*((volatile __typeof(x) *)(&(x))))
 
+#define g4c_var_barrier(v) 
+
 #define G4C_PAGE_SIZE 4096
 #define G4C_MEM_ALIGN 32
 

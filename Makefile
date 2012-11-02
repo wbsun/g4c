@@ -10,6 +10,10 @@ ac.o: ac.cc ac.hh ac.h
 ac: ac.o
 	g++ -D_G4C_BUILD_AC_ -O2 ac.o -o ac
 
+install-lib: lib
+	sudo cp libg4c.so /usr/lib/
+	sudo cp g4c.h /usr/include/
+
 clean-ac:
 	rm -f ac.o
 	rm -f ac

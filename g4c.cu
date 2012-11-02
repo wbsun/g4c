@@ -14,7 +14,7 @@ extern "C" const char *g4c_strerror(int err) {
 	case G4C_EKERNEL:
 		return G4C_SEKERNEL;
 	default:
-		return G4C_SENOEXIST;
+		return G4C_SENOTEXIST;
 	}
 }
 
@@ -119,11 +119,10 @@ g4c_alloc_stream()
 	return 0;
 }
 
-extern "C" int
+extern "C" void
 g4c_free_stream(int s)
 {
 	stream_uses[s] = 0;
-	return 0;
 }
 
 // Memory management functions.

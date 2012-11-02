@@ -14,6 +14,11 @@ install-lib: lib
 	sudo cp libg4c.so /usr/lib/
 	sudo cp g4c.h /usr/include/
 
+uninstall-lib:
+	sudo rm -f /usr/lib/libg4c.so
+	sudo rm -f /usr/include/g4c.h
+
+
 clean-ac:
 	rm -f ac.o
 	rm -f ac

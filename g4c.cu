@@ -130,6 +130,7 @@ g4c_free_stream(int s)
 extern "C" void *
 g4c_alloc_page_lock_mem(size_t sz)
 {
+	return 0;
 }
 
 extern "C" void
@@ -140,6 +141,7 @@ g4c_free_page_lock_mem(void *p, size_t sz)
 extern "C" void *
 g4c_alloc_dev_mem(size_t sz)
 {
+	return 0;
 }
 
 extern "C" void

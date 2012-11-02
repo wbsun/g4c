@@ -24,6 +24,10 @@ extern "C" {
 #define G4C_EMCPY -10000
 #define G4C_EKERNEL -10001
 
+	/*
+	 * Return value: 0 means OK.
+	 */
+
 	int g4c_init(void);
 	void g4c_exit(void);
 
@@ -41,8 +45,7 @@ extern "C" {
 	int g4c_h2d_async(void *h, void *d, size_t sz, int s);
 	int g4c_d2h_async(void *d, void *h, size_t sz, int s);
 
-	int g4c_do_stuff_sync(void *in, void *out, int n);
-	int g4c_do_stuff_async(void *in, void *out, int n, g4c_async_t *asyncdata);
+	int g4c_dev_memset(void *d, int val, size_t sz, int s);
 
 	const char *g4c_strerror(int err);
 

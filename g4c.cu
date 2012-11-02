@@ -19,10 +19,11 @@ extern "C" const char *g4c_strerror(int err) {
 }
 
 #ifndef NR_STREAM
-#define NR_STREAM 8
+#define NR_STREAM 32
 #endif
 
-static cudaStream_t streams[NR_STREAM];
+static cudaStream_t streams[NR_STREAM+1];
+static int stream_uses[NR_STREAM+1];
 
 #define csc(...) _cuda_safe_call(__VA_ARGS__, __FILE__, __LINE__)
 static cudaError_t
@@ -30,19 +31,10 @@ _cuda_safe_call(cudaError_t e, const char *file, int line) {
     if (e!=cudaSuccess) {
 	fprintf(stderr, "g4c Error: %s %d %s\n",
 		file, line, cudaGetErrorString(e));
-	cudaThreadExit();
+	cudaDeviceReset();
 	abort();
     }
     return e;
-}
-
-
-__global__ void stuff_kernel(void *in, void *out, int n) {
-	int *iin = (int*)in;
-	int *iout = (int*)out;
-
-	int tid = threadIdx.x + blockIdx.x*blockDim.x;
-	iout[tid] = iin[tid] + 10;
 }
 
 
@@ -56,9 +48,12 @@ g4c_init(void) {
 		     cudaDeviceScheduleSpin|cudaDeviceMapHost ) );
 
 	// Create streams
-	for (i=0; i<NR_STREAM; i++) {
+	for (i=1; i<NR_STREAM+1; i++) {
 		csc( cudaStreamCreate(&streams[i]) );
+		stream_uses[i] = 0;
 	}
+
+	csc( cudaGetLastError() );
 
 	return 0;
 }
@@ -67,46 +62,14 @@ extern "C" void
 g4c_exit(void) {
 	int i;
 
-	for (i=0; i<NR_STREAM; i++) {
+	for (i=1; i<NR_STREAM+1; i++) {
 		csc( cudaStreamDestroy(streams[i]) );
 	}
 }
 
-extern "C"
-void* g4c_malloc(size_t sz) {
-	void *p;
-	
-	csc( cudaHostAlloc(&p, sz,
-			   cudaHostAllocPortable|cudaHostAllocMapped) );
-
-	return p;
-}
-
-extern "C" void
-g4c_free(void *p) {
-	csc( cudaFreeHost(p) );
-}
-
 extern "C" int
-g4c_do_stuff_sync(void *in, void *out, int n) {
-	stuff_kernel<<<n/32, 32>>>(in, out, n);
-	csc( cudaThreadSynchronize() );
-
-	return 0;
-}
-
-extern "C" int
-g4c_do_stuff_async(void *in, void *out, int n, g4c_async_t *adata) {
-	adata->stream = 0;
-
-	stuff_kernel<<<n/32, 32, 0, streams[0]>>>(in, out, n);
-
-	return 0;
-}
-
-extern "C" int
-g4c_check_async_done(g4c_async_t *adata) {
-	cudaError_t e = cudaStreamQuery(streams[adata->stream]);
+g4c_stream_done(int s) {
+	cudaError_t e = cudaStreamQuery(streams[s]);
 	if (e == cudaSuccess) {
 		return 1;
 	} else if (e != cudaErrorNotReady) {
@@ -115,3 +78,73 @@ g4c_check_async_done(g4c_async_t *adata) {
 
 	return 0;
 }
+
+extern "C" int
+g4c_stream_sync(int s) {
+	csc( cudaStreamSynchronize(streams[s]) );
+	return 0;
+}
+
+extern "C" int
+g4c_h2d_async(void *h, void *d, size_t sz, int s)
+{
+	csc( cudaMemcpyAsync(d, h, sz, cudaMemcpyHostToDevice, streams[s]) );
+	return 0;
+}
+
+extern "C" int
+g4c_d2h_async(void *d, void *h, size_t sz, int s)
+{
+	csc( cudaMemcpyAsync(h, d, sz, cudaMemcpyDeviceToHost, streams[s]) );
+	return 0;
+}
+
+extern "C" int
+g4c_dev_memset(void *d, int val, size_t sz, int s)
+{
+	csc( cudaMemsetAsync(d, val, sz, streams[s]) );
+	return 0;
+}
+
+extern "C" int
+g4c_alloc_stream()
+{
+	for (int i=1; i<NR_STREAM; i++) {
+		if (stream_uses[i] == 0) {
+			stream_uses[i] = 1;
+			return i;
+		}
+	}
+
+	return 0;
+}
+
+extern "C" int
+g4c_free_stream(int s)
+{
+	stream_uses[s] = 0;
+	return 0;
+}
+
+// Memory management functions.
+extern "C" void *
+g4c_alloc_page_lock_mem(size_t sz)
+{
+}
+
+extern "C" void
+g4c_free_page_lock_mem(void *p, size_t sz)
+{
+}
+
+extern "C" void *
+g4c_alloc_dev_mem(size_t sz)
+{
+}
+
+extern "C" void
+g4c_free_dev_mem(void *p, size_t sz)
+{
+}
+
+// End of file.

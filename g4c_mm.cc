@@ -60,10 +60,80 @@ int create_mm_context(u64_t base_addr, u64_t size, u32_t unit_order)
 
 u64_t alloc_region(int mmc_idx, u64_t size)
 {
+	MMContext &mmc = mmcontexts[mmc_idx];
+
+	size = g4c_round_up(size, mmc.unit_size);
+
+	u32_t order = g4c_msb_u64(size);
+
+	if (((u64_t)0x1)<<order != size)
+		size = ((u64_t)0x1)<<(order+1);
+
+	if (order > mmc.order_end)
+		return 0;
+
+	for (int i = order; i <= mmc.order_end; i++)
+	{
+		set<u32_t> &chunks = mmc.free_chunks[i-mmc.order_begin];
+		if (!chunks.empty())
+		{
+			set<u32_t>::iterator ite = chunks.begin();
+			u32_t unit_idx = *ite;
+
+			chunks.erase(ite);
+			mmc.allocated_chunks.insert(MemAllocInfo(unit_idx, order));
+			u64_t addr = ((u64_t)unit_idx)<<mmc.unit_shift + mmc.base_addr;
+			for (int cur_od = i-1; cur_od >= order; cur_od--)
+			{
+				u32_t idx = unit_idx + ((u32_t)0x1)<<(cur_od-mmc.order_begin);
+				mmc.free_chunks[cur_od-mmc.order_begin].insert(idx);				
+			}
+			return addr;
+		}
+	}
+
+	return 0;
+}
+
+u32_t paired_chunk_idx(u32_t myidx, u32_t relative_order)
+{
+	u32_t idx = myidx >> relative_order;
+	if (idx & (u32_t)0x1 != 0)
+		return (idx-1)<<relative_order;
+	else
+		return (idx+1)<<relative_order;
 }
 
 bool free_region(int mmc_idx, u64_t addr)
 {
+	MMContext &mmc = mmcontexts[mmc_idx];
+
+	addr = g4c_round_down(addr, mmc.unit_size);
+	u32_t unit_idx = (addr - mmc.base_addr)>>mmc.unit_shift;
+	set<MemAllocInfo, MemAllocInfoComp>::iterator ite
+		= mmc.allocated_chunks.find(MemAllocInfo(unit_idx, 0));
+
+	if (ite == mmc.allocated_chunks.end())
+		return false;
+
+	MemAllocInfo mai = *ite;
+	mmc.allocated_chunks.erase(ite);
+
+	int relative_order = mai.order - mmc.order_begin;
+	u32_t paired_idx = paired_chunk_idx(unit_idx, relative_order);
+	set<u32_t> *chunks = &(mmc.free_chunks[relative_order]);
+	set<u32_t>::iterator ite = chunks->find(paired_idx);
+	while(ite != chunks->end() && relative_order < mmc.nr_orders-1) {
+		chunks->erase(ite);
+
+		relative_order++;
+		unit_idx = unit_idx > paired_idx? paired_idx:unit_idx;
+		paired_idx = paired_chunk_idx(unit_idx, relative_order);
+		chunks = &(mmc.free_chunks[relative_order]);
+		ite = chunks->find(paired_idx);
+	}
+	chunks->insert(unit_idx);
+	return true;
 }
 
 

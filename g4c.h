@@ -12,11 +12,16 @@ extern "C" {
 #define g4c_ptr_add(ptr, offset) ((void*)(((unsigned char*)(ptr)) + (offset)))
 #define g4c_ptr_offset(hptr, lptr) ((unsigned long)((unsigned char*)(hptr) - (unsigned char*)(lptr)))
 
+	// A hack to make sure a variable is really read from or written to memory.
 #define g4c_to_volatile(x) (*((volatile __typeof(x) *)(&(x))))
+#define g4c_to_ul(x) ((unsigned long)(x))
 
 #define g4c_var_barrier(v) 
 
 #define G4C_PAGE_SIZE 4096
+#define G4C_PAGE_SHIFT 12
+#define G4C_PAGE_MASK ((unsigned long)((~(unsigned long)(0x0))<<(G4C_PAGE_SHIFT)))
+	
 #define G4C_MEM_ALIGN 32
 
 	typedef struct {

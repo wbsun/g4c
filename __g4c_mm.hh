@@ -1,5 +1,5 @@
-#ifndef __G4C_MM_HH__
-#define __G4C_MM_HH__
+#ifndef __INTERNAL_G4C_MM_HH__
+#define __INTERNAL_G4C_MM_HH__
 
 #include "g4c.h"
 
@@ -8,10 +8,6 @@ typedef unsigned char u8_t;
 typedef unsigned short u16_t;
 typedef unsigned int u32_t;
 typedef unsigned long u64_t;
-
-// Get most significant 1 bit, between 63 and 0.
-// x is non-zero.
-#define g4c_msb_u64(x) (63 - __builtin_clzl(x))
 
 struct MemAllocInfo {
 	u32_t start_unit;
@@ -74,5 +70,6 @@ struct MMContext {
 int create_mm_context(u64_t base_addr, u64_t size, u32_t unit_order);
 u64_t alloc_region(int mmc_idx, u64_t size);
 bool free_region(int mmc_idx, u64_t addr);
+bool release_mm_context(int hdl);
 
 #endif

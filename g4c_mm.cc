@@ -1,9 +1,11 @@
 #include <set>
 #include <vector>
+#include <cstddef>
 
 using namespace std;
 
-#include "g4c_mm.hh"
+#include "__g4c_mm.hh"
+#include "g4c_mm.h"
 
 vector<MMContext> mmcontexts;
 
@@ -57,10 +59,24 @@ int create_mm_context(u64_t base_addr, u64_t size, u32_t unit_order)
 	return mmc.index;
 }
 
+bool release_mm_context(int hdl)
+{
+	if (hdl < mmcontexts.size() && hdl >= 0) {
+		mmcontexts[hdl].index = -1;
+		return true;
+	}
+	return false;
+}
+
 
 u64_t alloc_region(int mmc_idx, u64_t size)
 {
+	if (mmc_idx < 0 || mmc_idx >= mmcontexts.size())
+		return 0;
 	MMContext &mmc = mmcontexts[mmc_idx];
+
+	if (mmc.index < 0)
+		return 0;
 
 	size = g4c_round_up(size, mmc.unit_size);
 
@@ -111,8 +127,13 @@ u32_t paired_chunk_idx(u32_t myidx, u32_t relative_order)
 }
 
 bool free_region(int mmc_idx, u64_t addr)
-{
+{	
+	if (mmc_idx < 0 || mmc_idx >= mmcontexts.size())
+		return false;
 	MMContext &mmc = mmcontexts[mmc_idx];
+
+	if (mmc.index < 0)
+		return false;
 
 	addr = g4c_round_down(addr, mmc.unit_size);
 	u32_t unit_idx = (addr - mmc.base_addr)>>mmc.unit_shift;
@@ -141,6 +162,34 @@ bool free_region(int mmc_idx, u64_t addr)
 	chunks->insert(unit_idx);
 	return true;
 }
+
+
+// Wrappers for C and externl use
+
+extern "C"
+int g4c_new_mm_handle(void *base_addr, size_t total_size, unsigned int unit_order)
+{
+	return create_mm_context((u64_t)base_addr, (u64_t)total_size, (u32_t)unit_order);
+}
+
+extern "C"
+void *g4c_alloc_mem(int mm_handle, size_t size)
+{
+	return (void*)alloc_region(mm_handle, (u64_t)size);
+}
+
+extern "C"
+int g4c_free_mem(int mm_handle, void *addr)
+{
+	return free_region(mm_handle, (u64_t)addr)?0:G4C_EMM;
+}
+
+extern "C"
+int g4c_release_mm_handle(int mm_handle)
+{
+	return release_mm_context(mm_handle)?0:G4C_EMM;
+}
+
 
 
 #ifdef _G4C_TEST_MM_

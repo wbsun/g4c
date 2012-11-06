@@ -12,9 +12,13 @@ extern "C" {
 #define g4c_ptr_add(ptr, offset) ((void*)(((unsigned char*)(ptr)) + (offset)))
 #define g4c_ptr_offset(hptr, lptr) ((unsigned long)((unsigned char*)(hptr) - (unsigned char*)(lptr)))
 
-	// A hack to make sure a variable is really read from or written to memory.
+// A hack to make sure a variable is really read from or written to memory.
 #define g4c_to_volatile(x) (*((volatile __typeof(x) *)(&(x))))
 #define g4c_to_ul(x) ((unsigned long)(x))
+
+// Get most significant 1 bit, between 63 and 0.
+// x is non-zero.
+#define g4c_msb_u64(x) (63 - __builtin_clzl(x))
 
 #define g4c_var_barrier(v) 
 
@@ -24,24 +28,26 @@ extern "C" {
 	
 #define G4C_MEM_ALIGN 32
 
-	typedef struct {
-		int stream;
-	} g4c_async_t;
-
 #define G4C_EMCPY -10000
 #define G4C_EKERNEL -10001
+#define G4C_EMM -10002
+
+#define G4C_DEFAULT_NR_STREAMS 32
+#define G4C_DEFAULT_MEM_SIZE (0x1<<30)
 
 	/*
 	 * Return value: 0 means OK.
 	 */
 
-	int g4c_init(void);
+	int g4c_init(int nr_streams,
+		     size_t hostmem_sz,
+		     size_t devmem_sz);
 	void g4c_exit(void);
 
 	void *g4c_alloc_page_lock_mem(size_t sz);
-	void g4c_free_page_lock_mem(void* p, size_t sz);
+	void g4c_free_page_lock_mem(void* p);
 	void *g4c_alloc_dev_mem(size_t sz);
-	void g4c_free_dev_mem(void* p, size_t sz);
+	void g4c_free_dev_mem(void* p);
 
 	int g4c_alloc_stream();
 	void g4c_free_stream(int s);

@@ -44,15 +44,15 @@ int create_mm_context(u64_t base_addr, u64_t size, u32_t unit_order)
 
 	u32_t chunk_idx = 0;
 	for (u32_t i=mmc.order_begin; i<=mmc.order_end; i++) {
-		mmc.free_chunks.push_back(set<u32_t>());		
-		set<u32_t> & free_set = mmc.free_chunks.back();
+		set<u32_t> free_set;		
 		u64_t sz = ((u64_t)0x1)<<i;
-
-		if (sz & mmc.size != 0) {
+		
+		if ((sz & mmc.size) != 0) {
 			free_set.insert(chunk_idx);
 			chunk_idx += (sz>>unit_order);
 		}
-	}
+		mmc.free_chunks.push_back(free_set);
+	}	
 
 	return mmc.index;
 }
@@ -66,8 +66,9 @@ u64_t alloc_region(int mmc_idx, u64_t size)
 
 	u32_t order = g4c_msb_u64(size);
 
-	if (((u64_t)0x1)<<order != size)
-		size = ((u64_t)0x1)<<(order+1);
+	if ((((u64_t)0x1)<<order) != size) 
+		size = ((u64_t)0x1)<<(++order);
+	
 
 	if (order > mmc.order_end)
 		return 0;
@@ -83,13 +84,13 @@ u64_t alloc_region(int mmc_idx, u64_t size)
 			chunks.erase(ite);
 			mmc.allocated_chunks.insert(
 				MemAllocInfo(unit_idx, order));
-			u64_t addr = ((u64_t)unit_idx)<<mmc.unit_shift
+			u64_t addr = (((u64_t)unit_idx)<<mmc.unit_shift)
 				+ mmc.base_addr;
 			for (int cur_od = i-1; cur_od >= order; cur_od--)
 			{
 				u32_t idx = unit_idx +
-					((u32_t)0x1)<<(
-						cur_od-mmc.order_begin);
+					(((u32_t)0x1)<<(
+						cur_od-mmc.order_begin));
 				mmc.free_chunks[
 					cur_od-mmc.order_begin].insert(idx);				
 			}
@@ -103,7 +104,7 @@ u64_t alloc_region(int mmc_idx, u64_t size)
 u32_t paired_chunk_idx(u32_t myidx, u32_t relative_order)
 {
 	u32_t idx = myidx >> relative_order;
-	if (idx & (u32_t)0x1 != 0)
+	if ((idx & (u32_t)0x1) != 0)
 		return (idx-1)<<relative_order;
 	else
 		return (idx+1)<<relative_order;
@@ -115,14 +116,14 @@ bool free_region(int mmc_idx, u64_t addr)
 
 	addr = g4c_round_down(addr, mmc.unit_size);
 	u32_t unit_idx = (addr - mmc.base_addr)>>mmc.unit_shift;
-	set<MemAllocInfo, MemAllocInfoComp>::iterator ite
+	set<MemAllocInfo, MemAllocInfoComp>::iterator it
 		= mmc.allocated_chunks.find(MemAllocInfo(unit_idx, 0));
 
-	if (ite == mmc.allocated_chunks.end())
+	if (it == mmc.allocated_chunks.end())
 		return false;
 
-	MemAllocInfo mai = *ite;
-	mmc.allocated_chunks.erase(ite);
+	MemAllocInfo mai = *it;
+	mmc.allocated_chunks.erase(it);
 
 	int relative_order = mai.order - mmc.order_begin;
 	u32_t paired_idx = paired_chunk_idx(unit_idx, relative_order);
@@ -141,12 +142,13 @@ bool free_region(int mmc_idx, u64_t addr)
 	return true;
 }
 
+
 #ifdef _G4C_TEST_MM_
 
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
-#include <algorithms>
+#include <algorithm>
 
 using namespace std;
 
@@ -166,9 +168,9 @@ void dump_u32(u32_t u)
 void dump_mmcontext(MMContext &mmc)
 {
 	printf("MMContext:\n"
-	       "\tbase_addr: 0x%016xl  size: 0x%016xl\n"
-	       "\tunit_size: 0x%08x  unit_shift: %4u  unit_mask: 0x%016xl  nr_units: 0x%08x\n"
-	       "\tnr_orders: %4u  order_begin: %4u  order_end: %4u\n",
+	       "\tbase_addr: 0x%016lx  size: 0x%016lx\n"
+	       "\tunit_size: 0x%08x  unit_shift: %2u  unit_mask: 0x%016lx  nr_units: 0x%08x\n"
+	       "\tnr_orders: %2u  order_begin: %2u  order_end: %2u\n",
 	       mmc.base_addr, mmc.size, mmc.unit_size, mmc.unit_shift, mmc.unit_mask, mmc.nr_units,
 	       mmc.nr_orders, mmc.order_begin, mmc.order_end);
 
@@ -180,16 +182,19 @@ void dump_mmcontext(MMContext &mmc)
 	u32_t order = mmc.order_begin;
 	for (; ite != mmc.free_chunks.end(); ++ite)
 	{
-		printf("\t\tOrder %4u, 0x%x units free chunks:\n\t\t", order,
+		printf("\t\tOrder %2u, 0x%x units free chunks:\n\t\t", order,
 		       two_pow(order - mmc.order_begin));
 		for_each(ite->begin(), ite->end(), dump_u32);
 		printf("\n");
+		order++;
 	}
 }
 
 int main()
 {
 	int hdl = create_mm_context(0x10000000, 0x10000000, 8);
+
+	dump_mmcontext(mmcontexts[hdl]);
 
 	u64_t a1 = alloc_region(hdl, two_pow(16)|two_pow(15));
 	dump_mmcontext(mmcontexts[hdl]);
@@ -198,7 +203,7 @@ int main()
 	u64_t a3 = alloc_region(hdl, two_pow(14));
 	dump_mmcontext(mmcontexts[hdl]);
 	
-	printf("Addr: 0x%016xl, 0x%016xl, 0x%016xl\n", a1, a2, a3);
+	printf("\nAddr: 0x%016lx, 0x%016lx, 0x%016lx\n\n", a1, a2, a3);
 
 	bool b1 = free_region(hdl, a1);
 	dump_mmcontext(mmcontexts[hdl]);

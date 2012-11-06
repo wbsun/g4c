@@ -81,12 +81,17 @@ u64_t alloc_region(int mmc_idx, u64_t size)
 			u32_t unit_idx = *ite;
 
 			chunks.erase(ite);
-			mmc.allocated_chunks.insert(MemAllocInfo(unit_idx, order));
-			u64_t addr = ((u64_t)unit_idx)<<mmc.unit_shift + mmc.base_addr;
+			mmc.allocated_chunks.insert(
+				MemAllocInfo(unit_idx, order));
+			u64_t addr = ((u64_t)unit_idx)<<mmc.unit_shift
+				+ mmc.base_addr;
 			for (int cur_od = i-1; cur_od >= order; cur_od--)
 			{
-				u32_t idx = unit_idx + ((u32_t)0x1)<<(cur_od-mmc.order_begin);
-				mmc.free_chunks[cur_od-mmc.order_begin].insert(idx);				
+				u32_t idx = unit_idx +
+					((u32_t)0x1)<<(
+						cur_od-mmc.order_begin);
+				mmc.free_chunks[
+					cur_od-mmc.order_begin].insert(idx);				
 			}
 			return addr;
 		}
@@ -136,5 +141,73 @@ bool free_region(int mmc_idx, u64_t addr)
 	return true;
 }
 
+#ifdef _G4C_TEST_MM_
 
+#include <iostream>
+#include <cstdio>
+#include <cstdlib>
+#include <algorithms>
 
+using namespace std;
+
+#define two_pow(shift) (0x1<<(shift))
+#define str_bool(b) ((b)?"T":"F")
+
+void dump_mai(MemAllocInfo mai)
+{
+	printf("\t\tstart_unit: 0x%08x, order: %4u\n", mai.start_unit, mai.order);
+}
+
+void dump_u32(u32_t u)
+{
+	printf("0x%08x ", u);
+}
+
+void dump_mmcontext(MMContext &mmc)
+{
+	printf("MMContext:\n"
+	       "\tbase_addr: 0x%016xl  size: 0x%016xl\n"
+	       "\tunit_size: 0x%08x  unit_shift: %4u  unit_mask: 0x%016xl  nr_units: 0x%08x\n"
+	       "\tnr_orders: %4u  order_begin: %4u  order_end: %4u\n",
+	       mmc.base_addr, mmc.size, mmc.unit_size, mmc.unit_shift, mmc.unit_mask, mmc.nr_units,
+	       mmc.nr_orders, mmc.order_begin, mmc.order_end);
+
+	printf("\tallocated_chunks:\n");
+	for_each(mmc.allocated_chunks.begin(), mmc.allocated_chunks.end(), dump_mai);
+
+	printf("\tfree_chunks:\n");
+	vector<set<u32_t> >::iterator ite = mmc.free_chunks.begin();
+	u32_t order = mmc.order_begin;
+	for (; ite != mmc.free_chunks.end(); ++ite)
+	{
+		printf("\t\tOrder %4u, 0x%x units free chunks:\n\t\t", order,
+		       two_pow(order - mmc.order_begin));
+		for_each(ite->begin(), ite->end(), dump_u32);
+		printf("\n");
+	}
+}
+
+int main()
+{
+	int hdl = create_mm_context(0x10000000, 0x10000000, 8);
+
+	u64_t a1 = alloc_region(hdl, two_pow(16)|two_pow(15));
+	dump_mmcontext(mmcontexts[hdl]);
+	u64_t a2 = alloc_region(hdl, two_pow(17));
+	dump_mmcontext(mmcontexts[hdl]);
+	u64_t a3 = alloc_region(hdl, two_pow(14));
+	dump_mmcontext(mmcontexts[hdl]);
+	
+	printf("Addr: 0x%016xl, 0x%016xl, 0x%016xl\n", a1, a2, a3);
+
+	bool b1 = free_region(hdl, a1);
+	dump_mmcontext(mmcontexts[hdl]);
+	bool b2 = free_region(hdl, a2);
+	dump_mmcontext(mmcontexts[hdl]);
+	bool b3 = free_region(hdl, a3);
+	dump_mmcontext(mmcontexts[hdl]);
+
+	printf("Free results: %s, %s, %s\n", str_bool(b1), str_bool(b2), str_bool(b3));
+}
+
+#endif

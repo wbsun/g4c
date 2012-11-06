@@ -18,10 +18,19 @@ uninstall-lib:
 	sudo rm -f /usr/lib/libg4c.so
 	sudo rm -f /usr/include/g4c.h
 
+mm-test.o: g4c_mm.hh g4c_mm.cc g4c.h
+	g++ -D_G4C_TEST_MM_ -O2 -c g4c_mm.cc
+
+mm-test: mm-test.o
+	g++ -D_G4C_TEST_MM_ -O2 g4c_mm.o -o mmtest
+
+clean-mm-test:
+	rm -f g4c_mm.o
+	rm -f mmtest
 
 clean-ac:
 	rm -f ac.o
 	rm -f ac
 
-clean: clean-ac
+clean: clean-ac clean-mm-test
 	rm -f *.o *.so

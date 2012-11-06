@@ -43,6 +43,7 @@ extern "C" {
 		     size_t hostmem_sz,
 		     size_t devmem_sz);
 	void g4c_exit(void);
+	void g4c_abort(void);
 
 	void *g4c_alloc_page_lock_mem(size_t sz);
 	void g4c_free_page_lock_mem(void* p);

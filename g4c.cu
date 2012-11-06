@@ -110,6 +110,13 @@ g4c_exit(void) {
 
 	csc( cudaFree(__cur_ctx.devmem_start) );
 	csc( cudaFreeHost(__cur_ctx.hostmem_start) );
+
+	csc( cudaDeviceReset() );
+}
+
+extern "C" void
+g4c_abort(void) {
+	csc( cudaDeviceReset() );
 }
 
 extern "C" int

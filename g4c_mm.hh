@@ -1,5 +1,5 @@
-#ifndef __INTERNAL_G4C_MM_HH__
-#define __INTERNAL_G4C_MM_HH__
+#ifndef __G4C_MM_HH__
+#define __G4C_MM_HH__
 
 #include "g4c.h"
 

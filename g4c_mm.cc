@@ -4,10 +4,10 @@
 
 using namespace std;
 
-#include "__g4c_mm.hh"
+#include "g4c_mm.hh"
 #include "g4c_mm.h"
 
-vector<MMContext> mmcontexts;
+static vector<MMContext> mmcontexts;
 
 void lock_mmcontexts()
 {

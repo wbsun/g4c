@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include "g4c.h"
-#include "g4c_mm.hh"
+#include "g4c_mm.h"
 
 static const char *G4C_SEMCPY = "GPU memory copy failed";
 static const char *G4C_SEKERNEL = "GPU kernel launch or execution failed";
@@ -59,9 +59,9 @@ g4c_init(int nr_ss, size_t hm_sz, size_t dm_sz) {
 
 	// Set up stream management:
 	__cur_ctx.nr_streams = nr_ss;
-	__cur_ctx.streams = malloc(sizeof(cudaStream_t)
+	__cur_ctx.streams = (cudaStream_t*)malloc(sizeof(cudaStream_t)
 				   *(__cur_ctx.nr_streams+1));
-	__cur_ctx.stream_uses = malloc(sizeof(int)
+	__cur_ctx.stream_uses = (int*)malloc(sizeof(int)
 				       *(__cur_ctx.nr_streams+1));
 	if (!__cur_ctx.streams || !__cur_ctx.stream_uses)
 		return -ENOMEM;

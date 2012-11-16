@@ -14,6 +14,11 @@ extern "C" {
 		int noutput;
 	} ac_state_t;
 
+#define acm_state_transitions(pacm, sid) ((pacm)->transitions +\
+					 (sid)*AC_ALPHABET_SIZE)
+#define acm_state(pacm, sid) ((pacm)->states + (sid))
+#define acm_pattern(pacm, pid) ((pacm)->patterns + (pid))
+
 	typedef struct _ac_machine_t {
 		void *mem;
 		unsigned long memsz;
@@ -45,6 +50,12 @@ extern "C" {
 		unsigned int memflags);
 	void ac_release_machine(ac_machine_t *acm);
 
+	
+#define ac_res_found(r) ((r)>>31)
+#define ac_res_location(r) ((r)&0x7fffffff)
+#define ac_res_set_found(r, f) ((r)|(f<<31))
+#define ac_res_set_location(r, loc) (((r)&0x80000000)|loc)
+	
 	/*
 	 * Match pattern in str to at most len characters with acm.
 	 *
@@ -53,10 +64,12 @@ extern "C" {
 	 *   and res[i]:[30-0] is the location; otherwise res[i] is untouched. So
 	 *   res should be memset-ed to 0 by caller before calling.
 	 *
-	 * Reture: # of matched pattern.
+	 * once: return at first match, don't match all chars in str.	 
+	 *
+	 * Reture: # of matches, or -1 on error.
 	 *
 	 */
-	int ac_match(char *str, int len, unsigned int *res, ac_machine_t *acm);
+	int ac_match(char *str, int len, unsigned int *res, int once, ac_machine_t *acm);
 
 	/*
 	 * Prepare ACM matching on GPU by copying ACM in host memory to

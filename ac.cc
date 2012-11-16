@@ -207,6 +207,53 @@ ac_release_machine(ac_machine_t *acm)
 }
 
 
+extern "C" int
+ac_match(char *str, int len, unsigned int *res, int once, ac_machine_t *acm)
+{
+	int nm = 0;
+
+	char c;
+	ac_state_t *st = acm_state(acm, 0);	
+	for (int i=0; i<len; i++) {	       
+		c = str[i];
+		if (c < 0)
+			return -1;
+		int nid = acm_state_transitions(acm, st->id)[c];
+		st = acm_state(acm, nid);
+		if (st->noutput > 0) {
+			if (res) {
+				for (int j=0; j<st->noutput; j++) {
+					res[st->output[j]] = 0x80000000 | i;
+				}
+			}
+			if (!nm && once) {
+				return st->noutput;
+			}
+			nm += st->noutput;
+		}
+	}
+	return nm;
+}
+
+extern "C" int
+ac_prepare_gmatch(ac_machine_t *hacm, ac_machine_t **dacm, int s)
+{
+	return 0;
+}
+
+extern "C" int
+ac_gmatch(char *dstrs, int nstrs, int stride, int *dlens, unsigned int *dress,
+	  ac_machine_t *dacm, int s)
+{
+	return 0;
+}
+
+extern "C" int
+ac_gmatch_finish(int nstrs, unsigned int *dress, unsigned int *hdress, int s)
+{
+	return 0;
+}
+
 static void
 dump_state(ACState *s, char* kws[])
 {
@@ -280,7 +327,7 @@ main(int argc, char *argv[])
 	vector<ACState*>::iterator ite;
 	ac_machine_t cacm;
 
-	ac_build_goto(argv+1, argc-1, &acm);
+	ac_build_goto(argv+1, argc-2, &acm);
 	ac_build_failure(&acm);
 	ac_build_transition(&acm);
 

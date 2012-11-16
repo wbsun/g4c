@@ -44,6 +44,40 @@ extern "C" {
 		int npatterns,
 		unsigned int memflags);
 	void ac_release_machine(ac_machine_t *acm);
+
+	/*
+	 * Match pattern in str to at most len characters with acm.
+	 *
+	 * If res is not NULL, it must be unsigned int[nr_patterns], and results
+	 *   are recorded in it. For each pattern i, if matched, res[i]:[31] is 1,
+	 *   and res[i]:[30-0] is the location; otherwise res[i] is untouched. So
+	 *   res should be memset-ed to 0 by caller before calling.
+	 *
+	 * Reture: # of matched pattern.
+	 *
+	 */
+	int ac_match(char *str, int len, unsigned int *res, ac_machine_t *acm);
+
+	/*
+	 * Prepare ACM matching on GPU by copying ACM in host memory to
+	 * device memory.
+	 *
+	 * hacm is the ACM machine in host memory. dacm is the device one.
+	 *
+	 * If dacm is NULL, device memory for dacm is allocated according to
+	 *   hacm.
+	 * If dacm is not NULL, the caller must ensure it has enough space to
+	 *   hold a copy of hacm.
+	 *
+	 * Reture: 1 on success, 0 otherwise.
+	 *
+	 */
+	int ac_prepare_gmatch(ac_machine_t *hacm, ac_machine_t **dacm, int s);
+
+	int ac_gmatch(char *dstrs, int nstrs, int stride, int *dlens,
+		      unsigned int *dress, ac_machine_t *dacm, int s);
+	int ac_gmatch_finish(int nstrs, unsigned int *dress, unsigned int *hdress,
+			     int s);
 	
 #ifdef __cplusplus
 }

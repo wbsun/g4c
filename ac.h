@@ -10,7 +10,7 @@ extern "C" {
 	typedef struct _ac_state_t {
 		int id;
 		int prev;
-		int *output;
+		int output;
 		int noutput;
 	} ac_state_t;
 
@@ -18,10 +18,11 @@ extern "C" {
 					 (sid)*AC_ALPHABET_SIZE)
 #define acm_state(pacm, sid) ((pacm)->states + (sid))
 #define acm_pattern(pacm, pid) (*((pacm)->patterns + (pid)))
+#define acm_state_output(pacm, ofs) ((pacm)->outputs + (ofs))
 
 	typedef struct _ac_machine_t {
 		void *mem;
-		unsigned long memsz;
+		size_t memsz;
 
 // Ignore flags for now 
 #define ACM_PATTERN_PTRS_INSIDE     0x00000001
@@ -42,6 +43,20 @@ extern "C" {
 		char **patterns;
 		int npatterns;		
 	} ac_machine_t;
+
+	typedef struct _ac_dev_machine_t {
+		void *dmem;
+		size_t dmemsz;
+
+		unsigned int memflags;
+
+		ac_state_t *dstates;
+		int nstates;
+
+		int *dtransitions;
+		int *doutputs;
+		int noutputs;
+	} ac_dev_machine_t;
 
 	int ac_build_machine(
 		ac_machine_t *acm,
@@ -86,6 +101,8 @@ extern "C" {
 	 *
 	 */
 	int ac_prepare_gmatch(ac_machine_t *hacm, ac_machine_t **dacm, int s);
+
+	size_t ac_dev_acm_size(ac_machine_t *hacm);
 
 	int ac_gmatch(char *dstrs, int nstrs, int stride, int *dlens,
 		      unsigned int *dress, ac_machine_t *dacm, int s);

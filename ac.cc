@@ -1,4 +1,5 @@
 #include "ac.hh"
+#include "g4c.h"
 
 static void
 ac_build_goto(char *kws[], int n, ACMachine *acm)
@@ -109,7 +110,7 @@ extern "C" {
 extern "C" int
 ac_build_machine(ac_machine_t *acm, char **patterns, int npatterns, unsigned int memflags)
 {
-	unsigned long
+        size_t
 		psz   = 0,  // total size of all pattern strings, including the last NULL
 		ppsz  = 0,  // total size of all pointers of pattern strings
 		stsz  = 0,  // total size of all states
@@ -136,20 +137,26 @@ ac_build_machine(ac_machine_t *acm, char **patterns, int npatterns, unsigned int
 	ppsz = sizeof(char*)*npatterns;
 
 	stsz = acm->nstates * sizeof(ac_state_t);
+	stsz = g4c_round_up(stsz, G4C_PAGE_SIZE);
+	
 	trsz = acm->nstates * AC_ALPHABET_SIZE * sizeof(int);
+	trsz = g4c_round_up(trsz, G4C_PAGE_SIZE);
 
 	for (i=0; i<acm->nstates; i++) {
 		acm->noutputs += cppacm.states[i]->output.size();
 	}
 	outsz = acm->noutputs * sizeof(int);
+	outsz = g4c_round_up(outsz, G4C_PAGE_SIZE);
 	
 	acm->memsz = psz + ppsz + stsz + trsz + outsz;
+	acm->memsz = g4c_round_up(acm->memsz, G4C_PAGE_SIZE);
 
 	// memory allocation and assignment
 	acm->mem = malloc(acm->memsz);
 	if (acm->mem) {
 		int *tmpoutput;
 		char *ptn;
+		int output_offset = 0;
 
 		// default layout:
 		//   ----------- ---------------- ------------ ---------------------- -------------
@@ -157,9 +164,9 @@ ac_build_machine(ac_machine_t *acm, char **patterns, int npatterns, unsigned int
 		//   ----------- ---------------- ------------ ---------------------- -------------
 		//
 		acm->states = (ac_state_t*)acm->mem;
-		acm->transitions = (int*)(((char*)(acm->mem)) + stsz);
-		acm->outputs = acm->transitions + acm->nstates*AC_ALPHABET_SIZE;
-		acm->patterns = (char**)(acm->outputs + acm->noutputs);
+		acm->transitions = (int*)g4c_ptr_add(acm->mem, stsz);
+		acm->outputs = (int*)g4c_ptr_add(acm->transitions, trsz);
+		acm->patterns = (char**)g4c_ptr_add(acm->outputs, outsz);
 
 		// copy each state's information
 		tmpoutput = acm->outputs;
@@ -170,7 +177,7 @@ ac_build_machine(ac_machine_t *acm, char **patterns, int npatterns, unsigned int
 			acs->id = cpps->id;
 			acs->prev = (cpps->prev?cpps->prev->id:-1);
 			acs->noutput = (int)(cpps->output.size());
-			acs->output = (acs->noutput?tmpoutput:0);
+			acs->output = (acs->noutput?output_offset:-1);
 
 			// copy output table
 			for (set<int>::iterator ite = cpps->output.begin();
@@ -179,10 +186,11 @@ ac_build_machine(ac_machine_t *acm, char **patterns, int npatterns, unsigned int
 			{
 				*tmpoutput = *ite;
 				++tmpoutput;
+				++output_offset;
 			}
 
 			// copy transition table
-			memcpy((void*)(acm->transitions + i*AC_ALPHABET_SIZE),
+			memcpy(acm_state_transitions(acm, i),
 			       cpps->transition,
 			       sizeof(int)*AC_ALPHABET_SIZE);
 		}
@@ -224,8 +232,9 @@ ac_match(char *str, int len, unsigned int *res, int once, ac_machine_t *acm)
 		if (st->noutput > 0) {
 			if (res) {
 				for (int j=0; j<st->noutput; j++) {
-					res[st->output[j]] = 0x80000000 |
-						(i+1-strlen(acm_pattern(acm, st->output[j])));
+					int ot = acm_state_output(acm, st->output)[j];
+					res[ot] = 0x80000000 |
+						(i+1-strlen(acm_pattern(acm, ot)));
 				}
 			}
 			if (!nm && once) {
@@ -237,9 +246,21 @@ ac_match(char *str, int len, unsigned int *res, int once, ac_machine_t *acm)
 	return nm;
 }
 
-extern "C" int
-ac_prepare_gmatch(ac_machine_t *hacm, ac_machine_t **dacm, int s)
+extern "C" size_t
+ac_dev_acm_size(ac_machine_t *hacm)
 {
+	return g4c_ptr_offset(hacm->patterns, hacm->states);
+}
+
+extern "C" int
+ac_prepare_gmatch(ac_machine_t *hacm, ac_machine_t **pdacm, int s)
+{
+	// XXX: Ongoing.
+	if (!*pdacm) {
+		size_t dsz = ac_dev_acm_size(hacm);
+		*pdacm = (ac_machine_t*)g4c_alloc_dev_mem(dsz);
+	}
+		
 	return 0;
 }
 
@@ -290,10 +311,11 @@ dump_c_state(ac_state_t *s, ac_machine_t *acm)
 	printf("State %d, previous: %d, #outputs: %d\n", s->id, s->prev, s->noutput);
 	printf("\tOutputs:\n");
 	for (int i=0; i<s->noutput; i++) {
-		printf("\t\t%3d: %s\n", s->output[i], acm->patterns[s->output[i]]);
+		int ot = acm_state_output(acm, s->output)[i];
+		printf("\t\t%3d: %s\n", ot, acm->patterns[ot]);
 	}
 
-	int *tr = acm->transitions + s->id*AC_ALPHABET_SIZE;
+	int *tr = acm_state_transitions(acm, s->id);
 	printf("\tTransitions:\n");
 	for (int i=0; i<AC_ALPHABET_SIZE; i++) {
 		if (tr[i] != 0) {
@@ -336,13 +358,13 @@ main(int argc, char *argv[])
 	ac_build_machine(&cacm, argv+1, argc-2, 0);
 	dump_c_acm(&cacm);
 	
-	for (ite = acm.states.begin(); ite != acm.states.end(); ++ite)
-		;//dump_state(*ite, argv+1);
+// 	for (ite = acm.states.begin(); ite != acm.states.end(); ++ite)
+// 		;//dump_state(*ite, argv+1);
 
 	unsigned int *res = new unsigned int[argc];
 	memset(res, 0, sizeof(unsigned int)*argc);
 	int r = ac_match(argv[argc-1], strlen(argv[argc-1]), res, 0, &cacm);
-	printf("\n\nMatches: %d\n", r);
+	printf("Matches: %d\n", r);
 
 	if (r > 0) {
 		for (int i=0; i<=argc-2; i++) {

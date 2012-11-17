@@ -1,6 +1,9 @@
 #ifndef __G4C_AC_HH__
 #define __G4C_AC_HH__
 
+// for C
+#include "ac.h"
+
 #include <cstdio>
 #include <vector>
 #include <queue>
@@ -20,7 +23,7 @@ public:
 	set<int> output;
 	int failure;
 
-	int transition[128];
+	int transition[AC_ALPHABET_SIZE];
 
 	ACState():id(0), prev(0), failure(-1) {}
 	ACState(int sid):id(sid), prev(0), failure(-1) {}
@@ -42,7 +45,5 @@ public:
 	}
 };
 
-// for C
-#include "ac.h"
 
 #endif

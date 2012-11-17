@@ -31,7 +31,7 @@ ac_build_goto(char *kws[], int n, ACMachine *acm)
 	}
 
 	// setup initial state goto function
-	for (i=0; i<128; i++) {
+	for (i=0; i<AC_ALPHABET_SIZE; i++) {
 		if (states[0]->go.find(i) == states[0]->go.end())
 			states[0]->go[i] = 0;
 	}
@@ -66,6 +66,7 @@ ac_build_failure(ACMachine *acm)
 				f = acm->states[fid];
 			}
 			acm->states[ite->second]->failure = f->go[ite->first];
+			f = acm->states[f->go[ite->first]];
 			acm->states[ite->second]->output.insert(
 				f->output.begin(),
 				f->output.end());
@@ -79,7 +80,7 @@ ac_build_transition(ACMachine *acm)
 	queue<int> q;
 	ACState *s = acm->states[0];
 
-	for (int i=0; i<128; i++) {
+	for (int i=0; i<AC_ALPHABET_SIZE; i++) {
 		s->transition[i] = s->go[i];
 		if (s->go[i] != s->id)
 			q.push(s->go[i]);
@@ -90,7 +91,7 @@ ac_build_transition(ACMachine *acm)
 		ACState *r = acm->states[rid];
 		q.pop();
 
-		for (int i=0; i<128; i++) {
+		for (int i=0; i<AC_ALPHABET_SIZE; i++) {
 			if (r->go.find(i) != r->go.end()) {
 				q.push(r->go[i]);
 				r->transition[i] = r->go[i];
@@ -223,7 +224,8 @@ ac_match(char *str, int len, unsigned int *res, int once, ac_machine_t *acm)
 		if (st->noutput > 0) {
 			if (res) {
 				for (int j=0; j<st->noutput; j++) {
-					res[st->output[j]] = 0x80000000 | i;
+					res[st->output[j]] = 0x80000000 |
+						(i+1-strlen(acm_pattern(acm, st->output[j])));
 				}
 			}
 			if (!nm && once) {
@@ -331,11 +333,23 @@ main(int argc, char *argv[])
 	ac_build_failure(&acm);
 	ac_build_transition(&acm);
 
-	ac_build_machine(&cacm, argv+1, argc-1, 0);
+	ac_build_machine(&cacm, argv+1, argc-2, 0);
 	dump_c_acm(&cacm);
 	
 	for (ite = acm.states.begin(); ite != acm.states.end(); ++ite)
 		;//dump_state(*ite, argv+1);
+
+	unsigned int *res = new unsigned int[argc];
+	memset(res, 0, sizeof(unsigned int)*argc);
+	int r = ac_match(argv[argc-1], strlen(argv[argc-1]), res, 0, &cacm);
+	printf("\n\nMatches: %d\n", r);
+
+	if (r > 0) {
+		for (int i=0; i<=argc-2; i++) {
+			if (ac_res_found(res[i]))
+				printf("Matched %s at %u.\n", argv[i+1], ac_res_location(res[i]));
+		}
+	}
 
 	ac_release_machine(&cacm);
 	

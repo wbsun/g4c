@@ -17,7 +17,7 @@ extern "C" {
 #define acm_state_transitions(pacm, sid) ((pacm)->transitions +\
 					 (sid)*AC_ALPHABET_SIZE)
 #define acm_state(pacm, sid) ((pacm)->states + (sid))
-#define acm_pattern(pacm, pid) ((pacm)->patterns + (pid))
+#define acm_pattern(pacm, pid) (*((pacm)->patterns + (pid)))
 
 	typedef struct _ac_machine_t {
 		void *mem;

@@ -18,11 +18,12 @@ clean-mm:
 	rm -f g4c_mm.o
 
 
-ac-test.o: ac.cc ac.hh ac.h
+ac-test.o: ac.cc ac.hh ac.h ac_dev.cu g4c.hh g4c.h g4c.cu
+	nvcc -arch=sm_20 -O2 -c ac_dev.cu -o ac_dev.o
 	g++ -D_G4C_BUILD_AC_ -O2 -c ac.cc -o ac-test.o
 
-ac-test: ac-test.o
-	g++ -D_G4C_BUILD_AC_ -O2 ac-test.o -o ac-test
+ac-test: ac-test.o ac_dev.o
+	nvcc -arch=sm_20 -D_G4C_BUILD_AC_ -O2 ac-test.o ac_dev.o -o ac-test
 
 ac: ac.cc ac.hh ac.h
 	g++ -O2 -fPIC -c ac.cc

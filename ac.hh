@@ -45,5 +45,8 @@ public:
 	}
 };
 
+int __ac_gmatch(char *dstrs, int nstrs, int stride, int *dlens,
+		unsigned int *dress, ac_dev_machine_t *dacm, int s);
+
 
 #endif

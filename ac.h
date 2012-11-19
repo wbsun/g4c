@@ -23,7 +23,6 @@ extern "C" {
 	typedef struct _ac_machine_t {
 		void *mem;
 		size_t memsz;
-
 // Ignore flags for now 
 #define ACM_PATTERN_PTRS_INSIDE     0x00000001
 #define ACM_PATTERNS_INSIDE         0x00000002
@@ -32,30 +31,29 @@ extern "C" {
 #define ACM_BUILD_COPY_PATTERN_PTRS 0x00000010
 #define ACM_BUILD_COPY_PATTERNS     0x00000020
 		unsigned int memflags;
-
+			
 		ac_state_t *states;
 		int nstates;
-
+			
 		int *transitions;
 		int *outputs;
 		int noutputs;
-
+			
 		char **patterns;
 		int npatterns;		
 	} ac_machine_t;
 
 	typedef struct _ac_dev_machine_t {
-		void *dmem;
-		size_t dmemsz;
-
+		void *mem;
+		size_t memsz;
 		unsigned int memflags;
-
-		ac_state_t *dstates;
+		ac_state_t *states;
 		int nstates;
-
-		int *dtransitions;
-		int *doutputs;
+		int *transitions;
+		int *outputs;
 		int noutputs;
+		struct _ac_dev_machine_t *dev_self;
+		ac_machine_t *hacm;
 	} ac_dev_machine_t;
 
 	int ac_build_machine(
@@ -84,7 +82,8 @@ extern "C" {
 	 * Reture: # of matches, or -1 on error.
 	 *
 	 */
-	int ac_match(char *str, int len, unsigned int *res, int once, ac_machine_t *acm);
+	int ac_match(char *str, int len, unsigned int *res, int once,
+		     ac_machine_t *acm);
 
 	/*
 	 * Prepare ACM matching on GPU by copying ACM in host memory to
@@ -100,13 +99,20 @@ extern "C" {
 	 * Reture: 1 on success, 0 otherwise.
 	 *
 	 */
-	int ac_prepare_gmatch(ac_machine_t *hacm, ac_machine_t **dacm, int s);
+	int ac_prepare_gmatch(ac_machine_t *hacm, ac_dev_machine_t **dacm, int s);
 
 	size_t ac_dev_acm_size(ac_machine_t *hacm);
 
+	/*
+	 * Caller should take care of memset dress.
+	 */
 	int ac_gmatch(char *dstrs, int nstrs, int stride, int *dlens,
-		      unsigned int *dress, ac_machine_t *dacm, int s);
-	int ac_gmatch_finish(int nstrs, unsigned int *dress, unsigned int *hdress,
+		      unsigned int *dress, ac_dev_machine_t *dacm, int s);
+
+	/*
+	 * Seems unneeded.
+	 */	
+	int ac_gmatch_finish(int nstrs, unsigned int *dress, unsigned int *hress,
 			     int s);
 	
 #ifdef __cplusplus

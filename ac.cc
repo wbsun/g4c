@@ -203,10 +203,10 @@ ac_build_machine(ac_machine_t *acm, char **patterns, int npatterns, unsigned int
 		}
 
 		// OK
-		return 1;			
+		return 0;			
 	}
 	
-	return 0;
+	return -ENOMEM;
 }
 
 extern "C" void
@@ -253,28 +253,74 @@ ac_dev_acm_size(ac_machine_t *hacm)
 }
 
 extern "C" int
-ac_prepare_gmatch(ac_machine_t *hacm, ac_machine_t **pdacm, int s)
+ac_prepare_gmatch(ac_machine_t *hacm, ac_dev_machine_t **pdacm, int s)
 {
-	// XXX: Ongoing.
-	if (!*pdacm) {
-		size_t dsz = ac_dev_acm_size(hacm);
-		*pdacm = (ac_machine_t*)g4c_alloc_dev_mem(dsz);
+	ac_dev_machine_t *dacm = *pdacm;
+	if (!dacm) {
+		*pdacm = (ac_dev_machine_t*)
+			g4c_alloc_page_lock_mem(sizeof(ac_dev_machine_t));
+		if (!*pdacm) {
+			return -ENOMEM;
+		}
+		dacm = *pdacm;
+		memset(dacm, 0, sizeof(ac_dev_machine_t));		
 	}
+	
+	if (!dacm->dev_self) {
+		dacm->dev_self = (ac_dev_machine_t*)
+			g4c_alloc_dev_mem(sizeof(ac_dev_machine_t));
+		if (!dacm->dev_self) {
+			return -ENOMEM;
+		}
+	}
+
+	if (!dacm->mem) {
+		dacm->memsz = ac_dev_acm_size(hacm);
+		dacm->mem = g4c_alloc_dev_mem(dacm->memsz);
+		if (!dacm->mem)
+			return -ENOMEM;
+	}
+
+	dacm->memflags = hacm->memflags;
+	dacm->nstates = hacm->nstates;
+	dacm->noutputs = hacm->noutputs;
+
+	dacm->states = (ac_state_t*)dacm->mem;
+	dacm->transitions = (int*)g4c_ptr_add(
+		dacm->states,
+		g4c_ptr_offset(hacm->transitions,
+			       hacm->states));
+	dacm->outputs = (int*)g4c_ptr_add(
+		dacm->states,
+		g4c_ptr_offset(hacm->outputs,
+			       hacm->states));
+
+	dacm->hacm = hacm;
+	
+	int rt = g4c_h2d_async(
+		dacm, dacm->dev_self, sizeof(ac_dev_machine_t));
+	rt |= g4c_h2d_async(hacm->mem, dacm->mem, dacm->memsz);
 		
-	return 0;
+	return rt;
 }
 
 extern "C" int
-ac_gmatch(char *dstrs, int nstrs, int stride, int *dlens, unsigned int *dress,
-	  ac_machine_t *dacm, int s)
+ac_gmatch(char *dstrs, int nstrs, int stride, int *dlens,
+	  unsigned int *dress, ac_dev_machine_t *dacm, int s)
 {
-	return 0;
+	return __ac_gmatch(dstrs, nstrs, stride, dlens, dress, dacm, s);
 }
 
+/*
+ * May not need this.
+ */
 extern "C" int
-ac_gmatch_finish(int nstrs, unsigned int *dress, unsigned int *hdress, int s)
+ac_gmatch_finish(int nstrs, unsigned int *dress, unsigned int *hress,
+		 int s)
 {
-	return 0;
+	return g4c_d2h_async(dress, hress,
+			     nstrs*AC_ALPHABET_SIZE*sizeof(unsigned int),
+			     s);
 }
 
 static void

@@ -4,6 +4,7 @@
 #include <errno.h>
 #include "g4c.h"
 #include "g4c_mm.h"
+#include "g4c.hh"
 
 static const char *G4C_SEMCPY = "GPU memory copy failed";
 static const char *G4C_SEKERNEL = "GPU kernel launch or execution failed";
@@ -118,6 +119,11 @@ extern "C" void
 g4c_abort(void) {
 	csc( cudaDeviceReset() );
 }
+
+cudaStream_t
+g4c_get_stream(int s) {
+	return __cur_ctx.streams[s];
+}	
 
 extern "C" int
 g4c_stream_done(int s) {

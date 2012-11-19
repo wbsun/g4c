@@ -17,6 +17,13 @@ clean-mm-test:
 clean-mm:
 	rm -f g4c_mm.o
 
+ac-test:
+	nvcc -arch=sm_20 -O2 g4c.cu -o g4c-ac-test.o
+	g++ -O2 -c g4c_mm.cc -o g4c_mm-ac-test.o
+	nvcc -arch=sm_20 -O2 --compiler-options '-D_G4C_BUILD_AC_' ac_dev.cu -o ac_dev-ac-test.o
+	g++ -O2 -D_G4C_BUILD_AC_ -c ac.cc -o ac-test.o
+	nvcc -arch=sm_20 -O2 --compiler-options '-D_G4C_BUILD_AC_' ac-test.o ac_dev-ac-test.o g4c-ac-test.o g4c_mm-ac-test.o -o ac-test
+
 
 ac-test.o: ac.cc ac.hh ac.h ac_dev.cu g4c.hh g4c.h g4c.cu
 	nvcc -arch=sm_20 -O2 -c ac_dev.cu -o ac_dev.o

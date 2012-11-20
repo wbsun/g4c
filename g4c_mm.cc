@@ -192,7 +192,7 @@ int g4c_release_mm_handle(int mm_handle)
 
 
 
-#ifdef _G4C_TEST_MM_
+#ifdef _G4C_MM_TEST_
 
 #include <iostream>
 #include <cstdio>

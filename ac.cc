@@ -388,7 +388,7 @@ dump_c_acm(ac_machine_t *acm)
 }
 
 
-#ifdef _G4C_BUILD_AC_
+#ifdef _G4C_AC_TEST_
 
 int
 main(int argc, char *argv[])

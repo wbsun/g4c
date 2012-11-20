@@ -4,6 +4,8 @@
 
 using namespace std;
 
+#include <stdint.h>
+
 #include "g4c_mm.hh"
 #include "g4c_mm.h"
 
@@ -24,7 +26,7 @@ void unlock_mmcontexts()
  * size must be able to be divided by 2^unit_oder;
  *
  */
-int create_mm_context(u64_t base_addr, u64_t size, u32_t unit_order)
+int create_mm_context(uint64_t base_addr, uint64_t size, uint32_t unit_order)
 {
 	lock_mmcontexts();
 	mmcontexts.push_back(MMContext());
@@ -37,17 +39,17 @@ int create_mm_context(u64_t base_addr, u64_t size, u32_t unit_order)
 
 	mmc.unit_size = 0x1 << unit_order;
 	mmc.unit_shift = unit_order;
-	mmc.unit_mask = (u64_t)(0xffffffffffffffff)<<mmc.unit_shift;
-	mmc.nr_units = (u32_t)(size >> unit_order);
+	mmc.unit_mask = (uint64_t)(0xffffffffffffffff)<<mmc.unit_shift;
+	mmc.nr_units = (uint32_t)(size >> unit_order);
 
 	mmc.order_begin = unit_order;
 	mmc.order_end = g4c_msb_u64(size);
 	mmc.nr_orders = mmc.order_end - mmc.order_begin +1;
 
-	u32_t chunk_idx = 0;
-	for (u32_t i=mmc.order_begin; i<=mmc.order_end; i++) {
-		set<u32_t> free_set;		
-		u64_t sz = ((u64_t)0x1)<<i;
+	uint32_t chunk_idx = 0;
+	for (uint32_t i=mmc.order_begin; i<=mmc.order_end; i++) {
+		set<uint32_t> free_set;		
+		uint64_t sz = ((uint64_t)0x1)<<i;
 		
 		if ((sz & mmc.size) != 0) {
 			free_set.insert(chunk_idx);
@@ -69,7 +71,7 @@ bool release_mm_context(int hdl)
 }
 
 
-u64_t alloc_region(int mmc_idx, u64_t size)
+uint64_t alloc_region(int mmc_idx, uint64_t size)
 {
 	if (mmc_idx < 0 || mmc_idx >= mmcontexts.size())
 		return 0;
@@ -80,10 +82,10 @@ u64_t alloc_region(int mmc_idx, u64_t size)
 
 	size = g4c_round_up(size, mmc.unit_size);
 
-	u32_t order = g4c_msb_u64(size);
+	uint32_t order = g4c_msb_u64(size);
 
-	if ((((u64_t)0x1)<<order) != size) 
-		size = ((u64_t)0x1)<<(++order);
+	if ((((uint64_t)0x1)<<order) != size) 
+		size = ((uint64_t)0x1)<<(++order);
 	
 
 	if (order > mmc.order_end)
@@ -91,21 +93,21 @@ u64_t alloc_region(int mmc_idx, u64_t size)
 
 	for (int i = order; i <= mmc.order_end; i++)
 	{
-		set<u32_t> &chunks = mmc.free_chunks[i-mmc.order_begin];
+		set<uint32_t> &chunks = mmc.free_chunks[i-mmc.order_begin];
 		if (!chunks.empty())
 		{
-			set<u32_t>::iterator ite = chunks.begin();
-			u32_t unit_idx = *ite;
+			set<uint32_t>::iterator ite = chunks.begin();
+			uint32_t unit_idx = *ite;
 
 			chunks.erase(ite);
 			mmc.allocated_chunks.insert(
 				MemAllocInfo(unit_idx, order));
-			u64_t addr = (((u64_t)unit_idx)<<mmc.unit_shift)
+			uint64_t addr = (((uint64_t)unit_idx)<<mmc.unit_shift)
 				+ mmc.base_addr;
 			for (int cur_od = i-1; cur_od >= order; cur_od--)
 			{
-				u32_t idx = unit_idx +
-					(((u32_t)0x1)<<(
+				uint32_t idx = unit_idx +
+					(((uint32_t)0x1)<<(
 						cur_od-mmc.order_begin));
 				mmc.free_chunks[
 					cur_od-mmc.order_begin].insert(idx);				
@@ -117,16 +119,16 @@ u64_t alloc_region(int mmc_idx, u64_t size)
 	return 0;
 }
 
-u32_t paired_chunk_idx(u32_t myidx, u32_t relative_order)
+uint32_t paired_chunk_idx(uint32_t myidx, uint32_t relative_order)
 {
-	u32_t idx = myidx >> relative_order;
-	if ((idx & (u32_t)0x1) != 0)
+	uint32_t idx = myidx >> relative_order;
+	if ((idx & (uint32_t)0x1) != 0)
 		return (idx-1)<<relative_order;
 	else
 		return (idx+1)<<relative_order;
 }
 
-bool free_region(int mmc_idx, u64_t addr)
+bool free_region(int mmc_idx, uint64_t addr)
 {	
 	if (mmc_idx < 0 || mmc_idx >= mmcontexts.size())
 		return false;
@@ -136,7 +138,7 @@ bool free_region(int mmc_idx, u64_t addr)
 		return false;
 
 	addr = g4c_round_down(addr, mmc.unit_size);
-	u32_t unit_idx = (addr - mmc.base_addr)>>mmc.unit_shift;
+	uint32_t unit_idx = (addr - mmc.base_addr)>>mmc.unit_shift;
 	set<MemAllocInfo, MemAllocInfoComp>::iterator it
 		= mmc.allocated_chunks.find(MemAllocInfo(unit_idx, 0));
 
@@ -147,9 +149,9 @@ bool free_region(int mmc_idx, u64_t addr)
 	mmc.allocated_chunks.erase(it);
 
 	int relative_order = mai.order - mmc.order_begin;
-	u32_t paired_idx = paired_chunk_idx(unit_idx, relative_order);
-	set<u32_t> *chunks = &(mmc.free_chunks[relative_order]);
-	set<u32_t>::iterator ite = chunks->find(paired_idx);
+	uint32_t paired_idx = paired_chunk_idx(unit_idx, relative_order);
+	set<uint32_t> *chunks = &(mmc.free_chunks[relative_order]);
+	set<uint32_t>::iterator ite = chunks->find(paired_idx);
 	while(ite != chunks->end() && relative_order < mmc.nr_orders-1) {
 		chunks->erase(ite);
 
@@ -169,19 +171,19 @@ bool free_region(int mmc_idx, u64_t addr)
 extern "C"
 int g4c_new_mm_handle(void *base_addr, size_t total_size, unsigned int unit_order)
 {
-	return create_mm_context((u64_t)base_addr, (u64_t)total_size, (u32_t)unit_order);
+	return create_mm_context((uint64_t)base_addr, (uint64_t)total_size, (uint32_t)unit_order);
 }
 
 extern "C"
 void *g4c_alloc_mem(int mm_handle, size_t size)
 {
-	return (void*)alloc_region(mm_handle, (u64_t)size);
+	return (void*)alloc_region(mm_handle, (uint64_t)size);
 }
 
 extern "C"
 int g4c_free_mem(int mm_handle, void *addr)
 {
-	return free_region(mm_handle, (u64_t)addr)?0:G4C_EMM;
+	return free_region(mm_handle, (uint64_t)addr)?0:G4C_EMM;
 }
 
 extern "C"
@@ -209,7 +211,7 @@ void dump_mai(MemAllocInfo mai)
 	printf("\t\tstart_unit: 0x%08x, order: %4u\n", mai.start_unit, mai.order);
 }
 
-void dump_u32(u32_t u)
+void dump_u32(uint32_t u)
 {
 	printf("0x%08x ", u);
 }
@@ -227,8 +229,8 @@ void dump_mmcontext(MMContext &mmc)
 	for_each(mmc.allocated_chunks.begin(), mmc.allocated_chunks.end(), dump_mai);
 
 	printf("\tfree_chunks:\n");
-	vector<set<u32_t> >::iterator ite = mmc.free_chunks.begin();
-	u32_t order = mmc.order_begin;
+	vector<set<uint32_t> >::iterator ite = mmc.free_chunks.begin();
+	uint32_t order = mmc.order_begin;
 	for (; ite != mmc.free_chunks.end(); ++ite)
 	{
 		printf("\t\tOrder %2u, 0x%x units free chunks:\n\t\t", order,
@@ -245,11 +247,11 @@ int main()
 
 	dump_mmcontext(mmcontexts[hdl]);
 
-	u64_t a1 = alloc_region(hdl, two_pow(16)|two_pow(15));
+	uint64_t a1 = alloc_region(hdl, two_pow(16)|two_pow(15));
 	dump_mmcontext(mmcontexts[hdl]);
-	u64_t a2 = alloc_region(hdl, two_pow(17));
+	uint64_t a2 = alloc_region(hdl, two_pow(17));
 	dump_mmcontext(mmcontexts[hdl]);
-	u64_t a3 = alloc_region(hdl, two_pow(14));
+	uint64_t a3 = alloc_region(hdl, two_pow(14));
 	dump_mmcontext(mmcontexts[hdl]);
 	
 	printf("\nAddr: 0x%016lx, 0x%016lx, 0x%016lx\n\n", a1, a2, a3);

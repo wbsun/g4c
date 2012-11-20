@@ -3,16 +3,10 @@
 
 #include "g4c.h"
 
-// only for x86_64
-typedef unsigned char u8_t;
-typedef unsigned short u16_t;
-typedef unsigned int u32_t;
-typedef unsigned long u64_t;
-
 struct MemAllocInfo {
-	u32_t start_unit;
-	u32_t order;
-	MemAllocInfo(u32_t su, u32_t od): start_unit(su), order(od) {};
+	uint32_t start_unit;
+	uint32_t order;
+	MemAllocInfo(uint32_t su, uint32_t od): start_unit(su), order(od) {};
 	MemAllocInfo(const MemAllocInfo &v) {
 		start_unit = v.start_unit;
 		order = v.order;
@@ -31,20 +25,20 @@ struct MemAllocInfoComp {
 struct MMContext {
 	int index;
 	
-	u64_t base_addr;
-	u64_t size;
+	uint64_t base_addr;
+	uint64_t size;
 
-	u32_t unit_size;
-	u32_t unit_shift; // unit_order
-	u64_t unit_mask;	
-	u32_t nr_units;
+	uint32_t unit_size;
+	uint32_t unit_shift; // unit_order
+	uint64_t unit_mask;	
+	uint32_t nr_units;
 	
-	u32_t nr_orders;
-	u32_t order_begin;
-	u32_t order_end;
+	uint32_t nr_orders;
+	uint32_t order_begin;
+	uint32_t order_end;
 	
 	set<MemAllocInfo, MemAllocInfoComp> allocated_chunks;
-	vector<set<u32_t> > free_chunks;
+	vector<set<uint32_t> > free_chunks;
 	MMContext() {}
 	MMContext(const MMContext& v) {
 		index = v.index;
@@ -67,9 +61,9 @@ struct MMContext {
 	~MMContext() {}
 };
 
-int create_mm_context(u64_t base_addr, u64_t size, u32_t unit_order);
-u64_t alloc_region(int mmc_idx, u64_t size);
-bool free_region(int mmc_idx, u64_t addr);
+int create_mm_context(uint64_t base_addr, uint64_t size, uint32_t unit_order);
+uint64_t alloc_region(int mmc_idx, uint64_t size);
+bool free_region(int mmc_idx, uint64_t addr);
 bool release_mm_context(int hdl);
 
 #endif

@@ -1,3 +1,11 @@
+#ifdef _G4C_AC_TEST_
+#include <stdio.h>
+#include <stdlib.h>
+#endif
+
+#include <stddef.h>
+
+#include <errno.h>
 #include "ac.hh"
 #include "g4c.h"
 
@@ -298,8 +306,8 @@ ac_prepare_gmatch(ac_machine_t *hacm, ac_dev_machine_t **pdacm, int s)
 	dacm->hacm = hacm;
 	
 	int rt = g4c_h2d_async(
-		dacm, dacm->dev_self, sizeof(ac_dev_machine_t));
-	rt |= g4c_h2d_async(hacm->mem, dacm->mem, dacm->memsz);
+		dacm, dacm->dev_self, sizeof(ac_dev_machine_t), s);
+	rt |= g4c_h2d_async(hacm->mem, dacm->mem, dacm->memsz, s);
 		
 	return rt;
 }
@@ -322,6 +330,8 @@ ac_gmatch_finish(int nstrs, unsigned int *dress, unsigned int *hress,
 			     nstrs*AC_ALPHABET_SIZE*sizeof(unsigned int),
 			     s);
 }
+
+#ifdef _G4C_AC_TEST_
 
 static void
 dump_state(ACState *s, char* kws[])
@@ -387,8 +397,6 @@ dump_c_acm(ac_machine_t *acm)
 		dump_c_state(acm->states+i, acm);	
 }
 
-
-#ifdef _G4C_AC_TEST_
 
 int
 main(int argc, char *argv[])

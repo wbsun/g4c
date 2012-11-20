@@ -18,7 +18,7 @@ extern "C" {
 
 #define AC_MATCH_CHAR_CHECK_MASK 0x80000000
 #define AC_MATCH_CHAR_CHECK 0x80000000
-	
+
 
 #define AC_ALPHABET_SIZE 128
 	

@@ -3,7 +3,7 @@
 #include "g4c.hh"
 
 
-__global__ int
+__global__ void
 gpu_ac_match_general(char *strs, int stride, int *lens, unsigned int *ress,
 		     ac_dev_machine_t *acm)
 {
@@ -14,7 +14,7 @@ gpu_ac_match_general(char *strs, int stride, int *lens, unsigned int *ress,
 	char c;
 	ac_state_t *st = acm_state(acm, 0);
 	for (int i=0; i<stride; i++) {
-		c = str[i];
+		c = mystr[i];
 		if (c>=0) {
 			int nid = acm_state_transitions(acm, st->id)[c];
 			st = acm_state(acm, nid);			
@@ -49,7 +49,7 @@ gpu_ac_match(char *strings, int stride, int maxlen, int *lens,
 {
 	int id = blockDim.x*blockIdx.x + threadIdx.x;
 	int nlen;
-	char *mystr = strs + (id*stride);
+	char *mystr = strings + (id*stride);
 	unsigned int *res;
 	void (*res_handler) (ac_state_t *, int, unsigned int*, int *);
 	
@@ -63,7 +63,7 @@ gpu_ac_match(char *strings, int stride, int maxlen, int *lens,
 		break;
 		
 	case AC_MATCH_LEN_NORMAL:
-	case AC_MATCH_LEN_LENGTH:
+//	case AC_MATCH_LEN_LENGTH:
 	default:
 		nlen = lens[id];
 		break;
@@ -74,7 +74,7 @@ gpu_ac_match(char *strings, int stride, int maxlen, int *lens,
 		res = ress + id;
 		res_handler = __update_single_result;
 		break;
-	case AC_MATCH_RES_NORMAL:
+//	case AC_MATCH_RES_NORMAL:
 	case AC_MATCH_RES_FULL:
 	default:
 		res = ress+id*AC_ALPHABET_SIZE;

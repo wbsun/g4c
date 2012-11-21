@@ -35,33 +35,33 @@ extern "C" {
 #define G4C_DEFAULT_NR_STREAMS 32
 #define G4C_DEFAULT_MEM_SIZE (0x1<<30)
 
-	/*
-	 * Return value: 0 means OK.
-	 */
+    /*
+     * Return value: 0 means OK.
+     */
 
-	int g4c_init(int nr_streams,
-		     size_t hostmem_sz,
-		     size_t devmem_sz);
-	void g4c_exit(void);
-	void g4c_abort(void);
+    int g4c_init(int nr_streams,
+                 size_t hostmem_sz,
+                 size_t devmem_sz);
+    void g4c_exit(void);
+    void g4c_abort(void);
 
-	void *g4c_alloc_page_lock_mem(size_t sz);
-	void g4c_free_page_lock_mem(void* p);
-	void *g4c_alloc_dev_mem(size_t sz);
-	void g4c_free_dev_mem(void* p);
+    void *g4c_alloc_page_lock_mem(size_t sz);
+    void g4c_free_page_lock_mem(void* p);
+    void *g4c_alloc_dev_mem(size_t sz);
+    void g4c_free_dev_mem(void* p);
 
-	int g4c_alloc_stream();
-	void g4c_free_stream(int s);
+    int g4c_alloc_stream();
+    void g4c_free_stream(int s);
 
-	int g4c_stream_sync(int s);
-	int g4c_stream_done(int s);
+    int g4c_stream_sync(int s);
+    int g4c_stream_done(int s);
 
-	int g4c_h2d_async(void *h, void *d, size_t sz, int s);
-	int g4c_d2h_async(void *d, void *h, size_t sz, int s);
+    int g4c_h2d_async(void *h, void *d, size_t sz, int s);
+    int g4c_d2h_async(void *d, void *h, size_t sz, int s);
 
-	int g4c_dev_memset(void *d, int val, size_t sz, int s);
+    int g4c_dev_memset(void *d, int val, size_t sz, int s);
 
-	const char *g4c_strerror(int err);
+    const char *g4c_strerror(int err);
 
 #ifdef __cplusplus
 }

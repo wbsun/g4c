@@ -63,7 +63,7 @@ g4c_mm-mm-test.o: $(G4CMMDEPS)
 	$(CXX) $(CXXFLAGS) $(MMTESTFLAGS) -c $< -o $@
 
 
-install-lib: libg4c
+install-lib: libg4c.so
 	cp libg4c.so /usr/lib/
 	cp g4c.h /usr/include/
 

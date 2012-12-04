@@ -20,7 +20,14 @@ extern "C" {
 // x is non-zero.
 #define g4c_msb_u64(x) (63 - __builtin_clzl(x))
 
-#define g4c_var_barrier(v) 
+#define g4c_var_barrier(v)
+
+#define for_bits_h2l(begin, end, data, val, ite, step)			\
+    for (ite = (begin),							\
+	     val = ((data)>>ite)&&(~((~((typeof(data)) 0x0))<<(step)));	\
+	 ite >= (end);							\
+	 ite -= (step),							\
+	     val = ((data)>>ite)&&(~((~((typeof(data)) 0x0))<<(step))))    
 
 #define G4C_PAGE_SIZE 4096
 #define G4C_PAGE_SHIFT 12

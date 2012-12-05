@@ -116,10 +116,11 @@ extern "C" {
 }
 
 extern "C" int
-ac_build_machine(ac_machine_t *acm, char **patterns, int npatterns, unsigned int memflags)
+ac_build_machine(ac_machine_t *acm, char **patterns,
+		 int npatterns, unsigned int memflags)
 {
     size_t
-	psz   = 0,  // total size of all pattern strings, including the last NULL
+	psz   = 0,  // total size of all pattern strings, including '\0'
 	ppsz  = 0,  // total size of all pointers of pattern strings
 	stsz  = 0,  // total size of all states
 	trsz  = 0,  // total size of all transition table
@@ -167,9 +168,17 @@ ac_build_machine(ac_machine_t *acm, char **patterns, int npatterns, unsigned int
 	int output_offset = 0;
 
 	// default layout:
-	//   ----------- ---------------- ------------ ---------------------- -------------
-	//  | states .. | transitions .. | outputs .. | patterns pointers .. | patterns .. |
-	//   ----------- ---------------- ------------ ---------------------- -------------
+	//  --------------------
+	//  | states ...       |
+	//  +------------------+
+	//  | transitions ...  |
+	//  +------------------+
+	//  | outputs ...      |
+	//  +------------------+
+	//  | pattern ptrs ... |
+	//  +------------------+
+	//  | patterns ...     |
+	//  --------------------
 	//
 	acm->states = (ac_state_t*)acm->mem;
 	acm->transitions = (int*)g4c_ptr_add(acm->mem, stsz);

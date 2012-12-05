@@ -20,6 +20,10 @@ struct g4c_context {
     size_t hostmem_sz;
     void *hostmem_start;
 
+    int wcmem_handle;
+    size_t wcmem_sz;
+    void *wcmem_start;
+
     int devmem_handle;
     size_t devmem_sz;
     void *devmem_start;
@@ -50,13 +54,16 @@ _cuda_safe_call(cudaError_t e, const char *file, int line) {
 
 
 extern "C" int
-g4c_init(int nr_ss, size_t hm_sz, size_t dm_sz) {
+g4c_init(int nr_ss, size_t hm_sz, size_t wcm_sz, size_t dm_sz) {
     int i;
 
     // Enable memory map, and spin CPU thread when waiting for sync to
     // decrease latency.
     csc( cudaSetDeviceFlags(
 	     cudaDeviceScheduleSpin|cudaDeviceMapHost ) );
+
+    // Most algorithms we wrote don't use shared memory, but access
+    // global memory frequently, so much cache less shared memory.
     csc( cudaDeviceSetCacheConfig(cudaFuncCachePreferL1) );
 
     // Set up stream management:
@@ -77,11 +84,16 @@ g4c_init(int nr_ss, size_t hm_sz, size_t dm_sz) {
     // Set up MM:
     __cur_ctx.hostmem_sz = hm_sz;
     __cur_ctx.devmem_sz = dm_sz;
+    __cur_ctx.wcmem_sz = wcm_sz;
 
     csc( cudaHostAlloc(&__cur_ctx.hostmem_start,
 		       hm_sz, cudaHostAllocPortable) );
     csc( cudaMalloc(&__cur_ctx.devmem_start,
 		    dm_sz) );
+    csc( cudaHostAlloc(&__cur_ctx.wcmem_start,
+		       wcm_sz,
+		       cudaHostAllocPortable|
+		       cudaHostAllocWriteCombined) );
 
     __cur_ctx.hostmem_handle =
 	g4c_new_mm_handle(
@@ -93,7 +105,12 @@ g4c_init(int nr_ss, size_t hm_sz, size_t dm_sz) {
 	    __cur_ctx.devmem_start,
 	    dm_sz,
 	    G4C_PAGE_SHIFT);
-
+    __cur_ctx.wcmem_handle =
+	g4c_new_mm_handle(
+	    __cur_ctx.wcmem_start,
+	    wcm_sz,
+	    G4C_PAGE_SHIFT);
+    
     csc( cudaGetLastError() );
 
     return 0;
@@ -109,9 +126,11 @@ g4c_exit(void) {
 
     g4c_release_mm_handle(__cur_ctx.hostmem_handle);
     g4c_release_mm_handle(__cur_ctx.devmem_handle);
+    g4c_release_mm_handle(__cur_ctx.wcmem_handle);
 
     csc( cudaFree(__cur_ctx.devmem_start) );
     csc( cudaFreeHost(__cur_ctx.hostmem_start) );
+    csc( cudaFreeHost(__cur_ctx.wcmem_start) );
 
     csc( cudaDeviceReset() );
 }
@@ -196,9 +215,13 @@ g4c_alloc_page_lock_mem(size_t sz)
 }
 
 extern "C" void
-g4c_free_page_lock_mem(void *p)
+g4c_free_host_mem(void *p)
 {
-    g4c_free_mem(__cur_ctx.hostmem_handle, p);
+    if (g4c_ptr_within(__cur_ctx.hostmem_start,
+		       __cur_ctx.hostmem_sz, p))
+	g4c_free_mem(__cur_ctx.hostmem_handle, p);
+    else
+	g4c_free_mem(__cur_ctx.wcmem_handle, p);
 }
 
 extern "C" void *
@@ -213,4 +236,11 @@ g4c_free_dev_mem(void *p)
     g4c_free_mem(__cur_ctx.devmem_handle, p);
 }
 
+extern "C" void *
+g4c_alloc_wc_mem(size_t sz)
+{
+    return g4c_alloc_mem(__cur_ctx.wcmem_handle, sz);
+}
+
 // End of file.
+

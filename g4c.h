@@ -9,12 +9,20 @@ extern "C" {
 #define g4c_round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
 #define g4c_round_down(x, y) ((x) & ~__round_mask(x, y))
 
-#define g4c_ptr_add(ptr, offset) ((void*)(((unsigned char*)(ptr)) + (offset)))
-#define g4c_ptr_offset(hptr, lptr) ((unsigned long)((unsigned char*)(hptr) - (unsigned char*)(lptr)))
+#define g4c_to_ul(x) ((unsigned long)(x))
+    
+#define g4c_ptr_add(ptr, offset)			\
+    ((void*)(((unsigned char*)(ptr)) + (offset)))
+
+#define g4c_ptr_offset(hptr, lptr)					\
+    ((unsigned long)((unsigned char*)(hptr) - (unsigned char*)(lptr)))
+
+#define g4c_ptr_within(bptr, sz, ptr)			\
+    (g4c_to_ul(ptr) >= g4c_to_ul(bptr) &&		\
+     g4c_to_ul(g4c_ptr_add((bptr), (sz))) > g4c_to_ul(ptr))
 
 // A hack to make sure a variable is really read from or written to memory.
 #define g4c_to_volatile(x) (*((volatile __typeof(x) *)(&(x))))
-#define g4c_to_ul(x) ((unsigned long)(x))
 
 // Get most significant 1 bit, between 63 and 0.
 // x is non-zero.
@@ -41,6 +49,7 @@ extern "C" {
 
 #define G4C_DEFAULT_NR_STREAMS 32
 #define G4C_DEFAULT_MEM_SIZE (0x1<<30)
+#define G4C_DEFAULT_WCMEM_SIZE (0x1<<28)
 
     /*
      * Return value: 0 means OK.
@@ -48,14 +57,20 @@ extern "C" {
 
     int g4c_init(int nr_streams,
                  size_t hostmem_sz,
+		 size_t wcmem_sz,
                  size_t devmem_sz);
     void g4c_exit(void);
     void g4c_abort(void);
 
     void *g4c_alloc_page_lock_mem(size_t sz);
-    void g4c_free_page_lock_mem(void* p);
+    
+#define g4c_free_page_lock_mem(p) g4c_free_host_mem(p)
+    
+    void g4c_free_host_mem(void* p);
     void *g4c_alloc_dev_mem(size_t sz);
     void g4c_free_dev_mem(void* p);
+
+    void *g4c_alloc_wc_mem(size_t sz);
 
     int g4c_alloc_stream();
     void g4c_free_stream(int s);

@@ -142,7 +142,6 @@ __ipv4_lookup(g4c_lpm_tree *lpmtrie, uint32_t addr, node_type dummy)
     node_type *node = (node_type*)lpmtrie->nodes.b1;
     int nid = 0;
     uint8_t port = lpmtrie->fport;
-    int nnid;
     for_bits_h2l(32-lpmtrie->nbits, 0, addr, val, ite, lpmtrie->nbits) {
 	if (node[nid].port != lpmtrie->fport)
 	    port = node[nid].port;
@@ -171,12 +170,56 @@ g4c_ipv4_lookup(g4c_lpm_tree *lpmtrie, uint32_t addr)
     }
 }
 
+
+template <typename node_type> __global__ void
+gpu_lpm_lookup(g4c_lpm_tree *lpmt,
+	       uint32_t *addrs,
+	       uint8_t *ports,
+	       int n, node_type *dummy)
+{
+    int id = threadIdx.x + blockDim.x * blockIdx.x;
+
+    uint32_t val, addr = addrs[id];
+    int ite, nid=0;
+    node_type *node = (node_type*)lpmt->nodes.b1;
+    for_bits_h2l(32-lpmt->nbits, 0, addrs, val, ite, lpmt->nbits) {
+	if (node[nid].children[val]) {
+	    nid = node[nid].children[val];
+	} else {
+	    ports[id] = node[nid].port;
+	    break;
+	}
+    }
+}
+
+
 extern "C" int
 g4c_ipv4_gpu_lookup(g4c_lpm_tree *dlpmt,
 		    uint32_t *daddrs,
 		    uint8_t *dports,
-		    int n, int s)
+		    int nbits, int n, int s)
 {
+    cudaStream_t stream = g4c_get_stream(s);
+
+    switch(nbits) {
+    case 1:
+	gpu_lpm_lookup<<<n/32, 32, 0 stream>>>(
+	    dlpmt, daddrs, dports, n, (g4c_lpm_1b_node*)(0x0));
+	break;
+    case 2:
+	gpu_lpm_lookup<<<n/32, 32, 0 stream>>>(
+	    dlpmt, daddrs, dports, n, (g4c_lpm_2b_node*)(0x0));
+	break;
+    case 4:
+	gpu_lpm_lookup<<<n/32, 32, 0 stream>>>(
+	    dlpmt, daddrs, dports, n, (g4c_lpm_4b_node*)(0x0));
+	break;
+    default:
+	gpu_lpm_lookup<<<n/32, 32, 0 stream>>>(
+	    dlpmt, daddrs, dports, n, (g4c_lpm_1b_node*)(0x0));
+	break;
+    }
+
     return 0;
 }
 

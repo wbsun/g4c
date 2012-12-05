@@ -11,7 +11,7 @@ NVCCLIBFLAGS=--shared --compiler-options '-fPIC'
 ACTESTFLAGS=-D_G4C_AC_TEST_
 MMTESTFLAGS=-D_G4C_MM_TEST_
 
-SRCS=g4c_mm.cc g4c.cu ac.cc ac_dev.cu lookup.cc
+SRCS=g4c_mm.cc g4c.cu ac.cc ac_dev.cu lookup.cu
 LIBG4COBJS=$(addsuffix -lib.o, $(basename $(SRCS)))
 ACTESTOBJS=$(addsuffix -ac-test.o, $(basename $(SRCS)))
 MMTESTOBJS=g4c_mm-mm-test.o
@@ -28,6 +28,9 @@ lpm: lookup-lpm-test.o
 
 lookup-lpm-test.o: $(LPMDEPS)
 	$(NVCC) $(NVCCFLAGS) -c $< -o $@
+
+lookup-lib.o: $(LPMDEPS)
+	$(NVCC) $(NVCCFLAGS) $(NVCCLIBFLAGS) -c $< -o $@
 
 
 libg4c: $(LIBG4COBJS)

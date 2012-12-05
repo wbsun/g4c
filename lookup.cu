@@ -1,9 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <cuda.h>
 #include "lookup.h"
 #include "g4c.hh"
+#include <cuda.h>
+
+#include <vector>
+#include <algorithm>
+using namespace std;
 
 template<int BITS>
 class trie_node {
@@ -52,7 +56,7 @@ public:
 	for (int i=0; i<n; i++) {
 	    uint32_t val = 0;
 	    int ite;
-	    for_bits_h2l(32-BITS, 32-ents[i].nnetbits,
+	    for_u32_bits_h2l(32-BITS, 32-ents[i].nnetbits,
 			 ents[i].addr, val, ite, BITS) {
 		if (!node->children[val]) {
 		    trie_node<BITS> *p = new trie_node<BITS>();
@@ -142,7 +146,7 @@ __ipv4_lookup(g4c_lpm_tree *lpmtrie, uint32_t addr, node_type dummy)
     node_type *node = (node_type*)lpmtrie->nodes.b1;
     int nid = 0;
     uint8_t port = lpmtrie->fport;
-    for_bits_h2l(32-lpmtrie->nbits, 0, addr, val, ite, lpmtrie->nbits) {
+    for_u32_bits_h2l(32-lpmtrie->nbits, 0, addr, val, ite, lpmtrie->nbits) {
 	if (node[nid].port != lpmtrie->fport)
 	    port = node[nid].port;
 	
@@ -170,64 +174,6 @@ g4c_ipv4_lookup(g4c_lpm_tree *lpmtrie, uint32_t addr)
     }
 }
 
-
-template <typename node_type> __global__ void
-gpu_lpm_lookup(g4c_lpm_tree *lpmt,
-	       uint32_t *addrs,
-	       uint8_t *ports,
-	       int n, node_type *dummy)
-{
-    int id = threadIdx.x + blockDim.x * blockIdx.x;
-
-    uint32_t val, addr = addrs[id];
-    int ite, nid=0;
-    node_type *node = (node_type*)lpmt->nodes.b1;
-    for_bits_h2l(32-lpmt->nbits, 0, addr, val, ite, lpmt->nbits) {
-	if (node[nid].children[val]) {
-	    nid = node[nid].children[val];
-	} else {
-	    ports[id] = node[nid].port;
-	    break;
-	}
-    }
-}
-
-
-extern "C" int
-g4c_ipv4_gpu_lookup(g4c_lpm_tree *dlpmt,
-		    uint32_t *daddrs,
-		    uint8_t *dports,
-		    int nbits, int n, int s)
-{
-    cudaStream_t stream = g4c_get_stream(s);
-
-    switch(nbits) {
-    case 1:
-	gpu_lpm_lookup<<<n/32, 32, 0, stream>>>(
-	    dlpmt, daddrs, dports, n, (g4c_lpm_1b_node*)(0));
-	break;
-    case 2:
-	gpu_lpm_lookup<<<n/32, 32, 0, stream>>>(
-	    dlpmt, daddrs, dports, n, (g4c_lpm_2b_node*)(0));
-	break;
-    case 4:
-	gpu_lpm_lookup<<<n/32, 32, 0, stream>>>(
-	    dlpmt, daddrs, dports, n, (g4c_lpm_4b_node*)(0));
-	break;
-    default:
-	gpu_lpm_lookup<<<n/32, 32, 0, stream>>>(
-	    dlpmt, daddrs, dports, n, (g4c_lpm_1b_node*)(0));
-	break;
-    }
-
-    return 0;
-}
-
-
-// Import as soon as we need
-#include <vector>
-#include <algorithm>
-using namespace std;
 
 static bool
 __ipv4_rt_ent_less(g4c_ipv4_rt_entry *e1, g4c_ipv4_rt_entry *e2)
@@ -274,9 +220,67 @@ g4c_ipv4_static_lookup(uint32_t *srt, uint32_t addr)
     return g4c_srt_port(srt[g4c_srt_subnet_idx(addr)]);
 }
 
+
+//
+// GPU part
+//
+
+template<typename node_type> __global__ void
+gpu_lpm_lookup(int nbits,
+		 node_type *nodes,
+		 uint32_t *addrs,
+		 uint8_t *ports, int n)
+{
+    int id = threadIdx.x + blockDim.x * blockIdx.x;
+
+    uint32_t val, addr = addrs[id];
+    int ite;
+    int nid=0;
+    for_u32_bits_h2l(32-nbits, 0, addr, val, ite, nbits) {
+	if (nodes[nid].children[val]) {
+	    nid = nodes[nid].children[val];
+	} else {
+	    ports[id] = nodes[nid].port;
+	    break;
+	}
+    }
+}
+
+
+extern "C" int
+g4c_ipv4_gpu_lookup(g4c_lpm_tree *dlpmt,
+		    uint32_t *daddrs,
+		    uint8_t *dports,
+		    int nbits, int n, int s)
+{
+    cudaStream_t stream = g4c_get_stream(s);
+
+    switch(nbits) {
+    case 1:
+	gpu_lpm_lookup<<<n/32, 32, 0, stream>>>(
+	    nbits, (g4c_lpm_1b_node*)&(dlpmt->nodes), daddrs, dports, n);
+	break;
+    case 2:
+	gpu_lpm_lookup<<<n/32, 32, 0, stream>>>(
+	    nbits, (g4c_lpm_2b_node*)&(dlpmt->nodes), daddrs, dports, n);
+	break;
+    case 4:
+	gpu_lpm_lookup<<<n/32, 32, 0, stream>>>(
+	    nbits, (g4c_lpm_4b_node*)&(dlpmt->nodes), daddrs, dports, n);
+	break;
+    default:
+	return 1;
+    }
+
+    return 0;
+}
+
 __global__ void
 gpu_static_lookup(uint32_t *srt, uint32_t *addrs, uint8_t *ports, int n)
 {
+    int tid = threadIdx.x + blockDim.x*blockIdx.x;
+
+    ports[tid] = g4c_srt_port(srt[g4c_srt_subnet_idx(addrs[tid])]);    
 }
 
 extern "C" int
@@ -284,6 +288,7 @@ g4c_ipv4_gpu_static_lookup(uint32_t *dsrt, uint32_t *daddrs,
 			   uint8_t *dports, int n, int s)
 {
     cudaStream_t stream = g4c_get_stream(s);
-    gpu_static_lookup<<<n/32, 32, 0, stream>>>(dsrt, daddrs, dports, n);
+   gpu_static_lookup<<<n/32, 32, 0, stream>>>(dsrt, daddrs, dports, n);
     return 0;
 }
+

@@ -57,6 +57,7 @@ g4c_init(int nr_ss, size_t hm_sz, size_t dm_sz) {
     // decrease latency.
     csc( cudaSetDeviceFlags(
 	     cudaDeviceScheduleSpin|cudaDeviceMapHost ) );
+    csc( cudaDeviceSetCacheConfig(cudaFuncCachePreferL1) );
 
     // Set up stream management:
     __cur_ctx.nr_streams = nr_ss;

@@ -22,12 +22,12 @@ extern "C" {
 
 #define g4c_var_barrier(v)
 
-#define for_bits_h2l(begin, end, data, val, ite, step)			\
+#define for_u32_bits_h2l(begin, end, data, val, ite, step)		\
     for (ite = (begin),							\
-	     val = ((data)>>ite)&&(~((~((typeof(data)) 0x0))<<(step)));	\
+	     val = ((data)>>ite)&&(~((~(uint32_t)0x0)<<(step)));	\
 	 ite >= (end);							\
 	 ite -= (step),							\
-	     val = ((data)>>ite)&&(~((~((typeof(data)) 0x0))<<(step))))    
+	     val = ((data)>>ite)&&(~((~(uint32_t) 0x0)<<(step))))    
 
 #define G4C_PAGE_SIZE 4096
 #define G4C_PAGE_SHIFT 12

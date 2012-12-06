@@ -269,6 +269,20 @@ ac_dev_acm_size(ac_machine_t *hacm)
     return g4c_ptr_offset(hacm->patterns, hacm->states);
 }
 
+extern "C" void
+ac_free_dev_acm(ac_dev_machine_t **pdacm)
+{
+    ac_dev_machine_t *dacm = *pdacm;
+    if (dacm) {
+	if (dacm->dev_self)
+	    g4c_free_dev_mem(dacm->dev_self);
+	if (dacm->mem)
+	    g4c_free_dev_mem(dacm->mem);
+	g4c_free_host_mem(dacm);
+	*pdacm = 0;
+    }	
+}
+
 extern "C" int
 ac_prepare_gmatch(ac_machine_t *hacm, ac_dev_machine_t **pdacm, int s)
 {

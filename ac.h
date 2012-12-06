@@ -117,6 +117,7 @@ extern "C" {
     int ac_prepare_gmatch(ac_machine_t *hacm, ac_dev_machine_t **dacm, int s);
 
     size_t ac_dev_acm_size(ac_machine_t *hacm);
+    void ac_free_dev_acm(ac_dev_machine_t **pdacm);
 
     /*
      * Caller should take care of memset dress.

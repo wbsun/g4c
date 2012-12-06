@@ -22,12 +22,12 @@ timing_start() {
 inline static int64_t
 timing_stop(timingval *tv) {
     gettimeofday(&tv->newt, 0);
-    return interval_us(tv->oldv, tv->newv);
+    return interval_us(tv->oldt, tv->newt);
 }
 
 inline static int64_t
 timing_elapsed(timingval *tv) {
-    return interval_us(tv->oldv, tv->newv);
+    return interval_us(tv->oldt, tv->newt);
 }
 
 #endif

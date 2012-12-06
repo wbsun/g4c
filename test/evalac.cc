@@ -80,7 +80,7 @@ gen_strings(str_store *sst)
 }
 
 static int g_nr_patterns = 8;
-static int g_len_patterns = 4;
+static int g_len_patterns = 16;
 //static int g_nr_strings = 40960;
 //static int g_str_stride = 1024;
 
@@ -114,26 +114,33 @@ void do_eval(int nstrs, int strstride)
 	    );
     }
 
-    char *hstrs = (char*)g4c_alloc_wc_mem(sst.bufsz);
+    char *hstrs = (char*)g4c_alloc_page_lock_mem(sst.bufsz);
     memcpy(hstrs, sst.buf, sst.bufsz);
     char *dstrs = (char*)g4c_alloc_dev_mem(sst.bufsz);
     int *dlens =  (int*)g4c_ptr_add(dstrs, sst.count*sst.stride);
     uint32_t *dress = (uint32_t*)g4c_alloc_dev_mem(
 	sst.count*AC_ALPHABET_SIZE*sizeof(uint32_t));
 
-    int stream = g4c_alloc_stream();
+#define NRSTREAMS 1
+    int streams[NRSTREAMS];
+    for (int i=0; i<NRSTREAMS; i++)
+	streams[i] = g4c_alloc_stream();
     ac_dev_machine_t *pdacm = 0;
     
-    ac_prepare_gmatch(&acm, &pdacm, stream);
-    g4c_stream_sync(stream);
+    ac_prepare_gmatch(&acm, &pdacm, streams[0]);
+    g4c_stream_sync(streams[0]);
     
     timingval tv = timing_start();
-    g4c_h2d_async(hstrs, dstrs, sst.bufsz, stream);
-    ac_gmatch(dstrs, sst.count, sst.stride, dlens,
-	      dress, pdacm, stream);
-   ac_gmatch_finish(sst.count, dress, hress, stream);
-    g4c_stream_sync(stream);    
-    int64_t usec = timing_stop(&tv);
+    for (int i=0; i<NRSTREAMS; i++) {
+	g4c_h2d_async(hstrs, dstrs, sst.bufsz, streams[i]);
+	ac_gmatch(dstrs, sst.count, sst.stride, dlens,
+		  dress, pdacm, streams[i]);
+	g4c_d2h_async(dress, hress, sst.count*sizeof(int), streams[i]);
+	// ac_gmatch_finish(sst.count, dress, hress, streams[i]);
+    }
+    for (int i=0; i<NRSTREAMS; i++)
+	g4c_stream_sync(streams[i]);    
+    int64_t usec = timing_stop(&tv)/NRSTREAMS;
     
     printf("GPU size %dKB, time us %ld, rate %.3lfMB/s \n",
 	   (nstrs*strstride)>>10, usec,
@@ -147,7 +154,8 @@ void do_eval(int nstrs, int strstride)
     g4c_free_host_mem(hstrs);
     g4c_free_dev_mem(dstrs);
     g4c_free_dev_mem(dress);
-    g4c_free_stream(stream);
+    for (int i=0; i<NRSTREAMS; i++)
+	g4c_free_stream(streams[i]);
     ac_free_dev_acm(&pdacm);
     
     ac_release_machine(&acm);
@@ -157,18 +165,20 @@ int main(int argc, char *argv[])
 {
     eval_init();
 
-    int nrs[] = { 1<<7, 1<<8, 1<<9, 1<<10, 1<<11, 1<<12};
+    int nrs[] = { 1<<10, 1<<12, 1<<13, 1<<14};
     int strides[] = { 32, 64, 128, 256 };
 
     for (int nr = 0; nr < sizeof(nrs)/sizeof(int); nr++) {
-	for (int stride = 0; stride < sizeof(strides)/sizeof(int); stride++) {
+	for (int stride = 0;
+	     stride < sizeof(strides)/sizeof(int); stride++) {
 	    do_eval(nrs[nr], strides[stride]);
 	    cout<<endl;
 	}
     }
 
     for (int nr = 0; nr < sizeof(nrs)/sizeof(int); nr++) {
-	for (int stride = 0; stride < sizeof(strides)/sizeof(int); stride++) {
+	for (int stride = 0;
+	     stride < sizeof(strides)/sizeof(int); stride++) {
 	    do_eval(nrs[nr]*10, strides[stride]);
 	    cout<<endl;
 	}

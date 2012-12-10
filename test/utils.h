@@ -30,4 +30,14 @@ timing_elapsed(timingval *tv) {
     return interval_us(tv->oldt, tv->newt);
 }
 
+inline static int
+eval_init() {
+    int r = g4c_init(G4C_DEFAULT_NR_STREAMS,
+		     G4C_DEFAULT_MEM_SIZE,
+		     G4C_DEFAULT_WCMEM_SIZE,
+		     G4C_DEFAULT_MEM_SIZE+G4C_DEFAULT_WCMEM_SIZE);
+    return r;
+}
+
+
 #endif

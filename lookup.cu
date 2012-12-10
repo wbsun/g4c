@@ -288,7 +288,7 @@ g4c_ipv4_gpu_static_lookup(uint32_t *dsrt, uint32_t *daddrs,
 			   uint8_t *dports, int n, int s)
 {
     cudaStream_t stream = g4c_get_stream(s);
-   gpu_static_lookup<<<n/32, 32, 0, stream>>>(dsrt, daddrs, dports, n);
+    gpu_static_lookup<<<n/32, 32, 0, stream>>>(dsrt, daddrs, dports, n);
     return 0;
 }
 

@@ -40,6 +40,12 @@ extern "C" {
         } nodes;
     } g4c_lpm_tree;
 
+    typedef g4c_ipv4_rt_entry g4c_rte_t;
+    typedef g4c_lpm_1b_node g4c_lpmnode1b_t;
+    typedef g4c_lpm_2b_node g4c_lpmnode2b_t;
+    typedef g4c_lpm_4b_node g4c_lpmnode4b_t;
+    typedef g4c_lpm_tree g4c_lpmtree_t;
+    
     /*
      * Some strict pre-conditions to the follow functions:
      * - pointers should never be 0, no NULL pointer checking.

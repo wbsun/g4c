@@ -9,6 +9,8 @@ using namespace std;
 #include "utils.h"
 #include "../ac.h"
 
+static int g_rand_lens = 0;
+
 
 static char **
 gen_patterns(int np, int plen)
@@ -42,6 +44,7 @@ typedef struct {
     int stride;
     size_t bufsz;
     int *lens;
+    int tlen;
 } str_store;
 
 static int
@@ -54,13 +57,17 @@ gen_strings(str_store *sst)
 
     sst->strs = (char*)sst->buf;
     sst->lens = (int*)(g4c_ptr_add(sst->buf, sst->count*sst->stride));
+    sst->tlen = 0;
 
     srand((unsigned int)clock());
     for (int i=0; i<sst->count; i++) {
 	char *s = sst->strs + i*sst->stride;
-	// sst->lens[i] = rand()%((sst->stride)-2) + 1;
+	if (g_rand_lens)
+	    sst->lens[i] = rand()%((sst->stride)-2) + 1;
+	else
+	    sst->lens[i] = sst->stride-1;
+	sst->tlen += sst->lens[i];
 	int j;
-	sst->lens[i] = sst->stride-1;
 	for (j=0; j<sst->lens[i]; j++)
 	    s[j] = (char)(rand()%60 + 'A');
 	s[j] = (char)0;
@@ -73,6 +80,7 @@ static int g_nr_patterns = 8;
 static int g_len_patterns = 16;
 //static int g_nr_strings = 40960;
 //static int g_str_stride = 1024;
+static int g_acm_type=0;
 
 void do_eval(int nstrs, int strstride)
 {
@@ -99,8 +107,8 @@ void do_eval(int nstrs, int strstride)
 	}
 	int64_t ctv = timing_stop(&tv);
 	printf("CPU size %dKB, time us %ld, rate %.3lfMB/s \n",
-	       (nstrs*strstride)>>10, ctv,
-	       ((double)(nstrs*strstride)/(double)ctv)
+	       (sst.tlen)>>10, ctv,
+	       ((double)(sst.tlen)/(double)ctv)
 	    );
     }
 
@@ -111,7 +119,7 @@ void do_eval(int nstrs, int strstride)
     uint32_t *dress = (uint32_t*)g4c_alloc_dev_mem(
 	sst.count*AC_ALPHABET_SIZE*sizeof(uint32_t));
 
-#define NRSTREAMS 1
+#define NRSTREAMS 2
     int streams[NRSTREAMS];
     for (int i=0; i<NRSTREAMS; i++)
 	streams[i] = g4c_alloc_stream();
@@ -123,8 +131,8 @@ void do_eval(int nstrs, int strstride)
     timingval tv = timing_start();
     for (int i=0; i<NRSTREAMS; i++) {
 	g4c_h2d_async(hstrs, dstrs, sst.bufsz, streams[i]);
-	ac_gmatch(dstrs, sst.count, sst.stride, dlens,
-		  dress, pdacm, streams[i]);
+	ac_gmatch2(dstrs, sst.count, sst.stride, dlens,
+		   dress, pdacm, streams[i], g_acm_type);
 	g4c_d2h_async(dress, hress, sst.count*sizeof(int), streams[i]);
 	// ac_gmatch_finish(sst.count, dress, hress, streams[i]);
     }
@@ -133,8 +141,8 @@ void do_eval(int nstrs, int strstride)
     int64_t usec = timing_stop(&tv)/NRSTREAMS;
     
     printf("GPU size %dKB, time us %ld, rate %.3lfMB/s \n",
-	   (nstrs*strstride)>>10, usec,
-	   ((double)(nstrs*strstride)/(double)usec)
+	   (sst.tlen)>>10, usec,
+	   ((double)(sst.tlen)/(double)usec)
 	);
 
     
@@ -154,6 +162,11 @@ void do_eval(int nstrs, int strstride)
 int main(int argc, char *argv[])
 {
     eval_init();
+
+    if(argc > 1)
+	g_acm_type = atoi(argv[1]);
+    if(argc > 2)
+	g_rand_lens = atoi(argv[2]);
 
     int nrs[] = { 1<<10, 1<<12, 1<<13, 1<<14};
     int strides[] = { 32, 64, 128, 256 };

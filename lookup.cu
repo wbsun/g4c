@@ -236,6 +236,7 @@ gpu_lpm_lookup(int nbits,
     int id = threadIdx.x + blockDim.x * blockIdx.x;
 
     uint32_t val, addr = addrs[id];
+    __syncthreads();
     int ite;
     int nid=0;
     for_u32_bits_h2l(32-nbits, 0, addr, val, ite, nbits) {

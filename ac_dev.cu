@@ -1,6 +1,10 @@
 #include <cuda.h>
 #include "ac.hh"
 #include "g4c.hh"
+#include <errno.h>
+#include <stdint.h>
+
+#define __mytid (blockDim.x * blockIdx.x + threadIdx.x)
 
 __global__ void
 gpu_ac_match_general(char *strs, int stride, int *lens, unsigned int *ress,
@@ -12,6 +16,7 @@ gpu_ac_match_general(char *strs, int stride, int *lens, unsigned int *ress,
 
     char c;
     ac_state_t *st = acm_state(acm, 0);
+    __syncthreads();
     for (int i=0; i<stride; i++) {
 	c = mystr[i];
 	if (c>=0) {
@@ -29,70 +34,111 @@ gpu_ac_match_general(char *strs, int stride, int *lens, unsigned int *ress,
     }
 }
 
-__device__ inline void
-__update_single_result(ac_state_t *st, int idx, unsigned int *res, int *output)
-{
-    *res += st->noutput;
-}
+typedef union __align__(8) {
+    uint64_t u64;
+    uint32_t u32[2];
+    uint8_t  u8[8];
+} u64b_t;
 
-__device__ inline void
-__update_full_results(ac_state_t *st, int idx, unsigned int *res, int *output)
+__global__ void
+gpu_acm_t1(char *strs, int stride, int *lens, unsigned int *ress,
+	   ac_dev_machine_t *acm)
 {
-    for (int i=0; i<st->noutput; i++)
-	res[output[i]]++;
+    int id = __mytid;
+    int len = lens[id];
+
+    unsigned int *res = ress + id*AC_ALPHABET_SIZE;
+
+    uint64_t *p = (uint64_t*)(strs+id*stride);
+    u64b_t d;
+    int nid;
+    ac_state_t *st = acm_state(acm, 0);
+    __syncthreads();
+    
+    for (int i=0; i<len; i+= 8, ++p) {
+	d.u64 = *p;	
+	for (int j=0; j<8; j++) {
+	    nid = acm_state_transitions(acm, st->id)[d.u8[j]];
+	    st = acm_state(acm, nid);
+	    if (st->noutput > 0) {
+		for (int k=0; k<st->noutput; k++)
+		    ++res[acm_state_output(acm, st->output)[k]];
+	    }
+	}
+    }    
 }
 
 __global__ void
-gpu_ac_match(char *strings, int stride, int maxlen, int *lens,
-	     unsigned int *ress, ac_dev_machine_t *acm, unsigned int match_type)
+gpu_acm_t2(char *strs, int stride, int *lens, unsigned int *ress,
+	   ac_dev_machine_t *acm)
 {
-    int id = blockDim.x*blockIdx.x + threadIdx.x;
-    int nlen;
-    char *mystr = strings + (id*stride);
-    unsigned int *res;
-    void (*res_handler) (ac_state_t *, int, unsigned int*, int *);
-	
-    switch(match_type&AC_MATCH_LEN_MASK) {
-    case AC_MATCH_LEN_MAX_LEN:
-	nlen = maxlen;
-	break;
-		
-    case AC_MATCH_LEN_ALL_STRIDE:
-	nlen = stride;
-	break;
-		
-    case AC_MATCH_LEN_NORMAL:
-//	case AC_MATCH_LEN_LENGTH:
-    default:
-	nlen = lens[id];
-	break;
-    }
+    int id = __mytid;
+    int len = lens[id];
 
-    switch(match_type&AC_MATCH_RES_MASK) {
-    case AC_MATCH_RES_SINGLE:
-	res = ress + id;
-	res_handler = __update_single_result;
-	break;
-//	case AC_MATCH_RES_NORMAL:
-    case AC_MATCH_RES_FULL:
-    default:
-	res = ress+id*AC_ALPHABET_SIZE;
-	res_handler = __update_full_results;
-	break;
-    }
-
-    char c;
+    uint64_t *p = (uint64_t*)(strs+id*stride);
+    u64b_t d;
+    int nid;
     ac_state_t *st = acm_state(acm, 0);
-    for (int i=0; i<nlen; i++) {
-	c = mystr[i];
-	if (match_type & AC_MATCH_CHAR_CHECK) {
-	    if (c<0)
-		continue;
+    __syncthreads();
+    
+    for (int i=0; i<len; i+= 8, ++p) {
+	d.u64 = *p;	
+	for (int j=0; j<8; j++) {
+	    nid = acm_state_transitions(acm, st->id)[d.u8[j]];
+	    st = acm_state(acm, nid);
+	    ress[id] += st->noutput;
 	}
-	int nid = acm_state_transitions(acm, st->id)[c];
-	st = acm_state(acm, nid);
-	res_handler(st, i, res, acm_state_output(acm, st->output));		
+    }    
+}
+
+__global__ void
+gpu_acm_t3(char *strs, int stride, int *lens, unsigned int *ress,
+	   ac_dev_machine_t *acm)
+{
+    int id = __mytid;
+    int len = lens[id];
+
+    uint64_t *p = (uint64_t*)(strs+id*stride);
+    u64b_t d;
+    int nid;
+    ac_state_t *st = acm_state(acm, 0);
+    __syncthreads();
+    
+    for (int i=0; i<len; i+= 8, ++p) {
+	d.u64 = *p;	
+	for (int j=0; j<8; j++) {
+	    nid = acm_state_transitions(acm, st->id)[d.u8[j]];
+	    st = acm_state(acm, nid);
+	    ress[id] = st->noutput;
+	    return;
+	}
+    }    
+}
+
+__global__ void
+gpu_acm_t4(char *strs, int stride, int *lens, unsigned int *ress,
+	   ac_dev_machine_t *acm)
+{
+    int id = __mytid;
+    int len = lens[id];
+
+    uint64_t *p = (uint64_t*)(strs+id*stride);
+    u64b_t d;
+    unsigned int r=0;
+    int nid;
+    ac_state_t *st = acm_state(acm, 0);
+    __syncthreads();
+    
+    for (int i=0; i<len; i+= 8, ++p) {
+	d.u64 = *p;	
+	for (int j=0; j<8; j++) {
+	    nid = acm_state_transitions(acm, st->id)[d.u8[j]];
+	    st = acm_state(acm, nid);
+	    r += st->noutput;
+	}
     }
+   __syncthreads();
+    ress[id] = r;
 }
 
 
@@ -188,6 +234,24 @@ ac_gmatch2(char *dstrs, int nstrs, int stride, int *dlens,
     cudaStream_t st = g4c_get_stream(s);
     int nblocks = g4c_round_up(nstrs/32, 32);
 
+    switch(mtype) {
+    case 1:
+	gpu_acm_t1<<<nblocks, 32, 0, st>>>(dstrs, stride, dlens, dress, dacm);
+	break;
+    case 2:
+	gpu_acm_t2<<<nblocks, 32, 0, st>>>(dstrs, stride, dlens, dress, dacm);
+	break;
+    case 3:
+	gpu_acm_t3<<<nblocks, 32, 0, st>>>(dstrs, stride, dlens, dress, dacm);
+	break;
+    case 4:
+	gpu_acm_t4<<<nblocks, 32, 0, st>>>(dstrs, stride, dlens, dress, dacm);
+	break;
+    case 0:
+    default:
+	gpu_ac_match_general<<<nblocks, 32, 0, st>>>(dstrs, stride, dlens, dress, dacm);
+	break;
+    }
     return 0;
 }
 

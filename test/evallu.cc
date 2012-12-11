@@ -48,8 +48,9 @@ gen_rt_entries(g4c_rte_t **ents, int n)
     srand((unsigned int)clock());
     for (int i=0; i<n; i++) {
 	int x = rand()%3;
+	x = x<0?-x:x;
 	(*ents)[i].nnetbits = 8*(x+1);
-	(*ents)[i].mask = 0xffffffff<<(32-(*ents)[i].nnetbits);
+	(*ents)[i].mask = (uint32_t)0xffffffff<<(32-(*ents)[i].nnetbits);
 	switch(x) {
 	case 2:
 	    ((unsigned char*)&((*ents)[i].addr))[2] =
@@ -62,7 +63,7 @@ gen_rt_entries(g4c_rte_t **ents, int n)
 		(unsigned char)(rand()%256);
 	}
 	(*ents)[i].addr &= (*ents)[i].mask;
-	(*ents)[i].port = (uint8_t)rand()%128;
+	(*ents)[i].port = (uint8_t)rand()%127;
     }
 
     return 0;	
@@ -76,11 +77,22 @@ prepare_eval_item(rtlu_eval *item, int n, int nrt, int s)
     
     g4c_lpmtree_t *lpmt = g4c_build_lpm_tree(ents, nrt, g_nbits, 0);
 
-    size_t tsz = sizeof(g4c_lpm_tree)+sizeof(g4c_lpmnode2b_t)*lpmt->nnodes;
+    size_t tsz = sizeof(g4c_lpm_tree);
+    switch(g_nbits) {
+    case 1:
+	tsz += sizeof(g4c_lpmnode1b_t)*lpmt->nnodes;
+	break;
+    case 2:
+	tsz += sizeof(g4c_lpmnode2b_t)*lpmt->nnodes;
+	break;
+    case 4:
+	tsz += sizeof(g4c_lpmnode4b_t)*lpmt->nnodes;
+	break;
+    }
     item->hlpmt = (g4c_lpmtree_t*)g4c_alloc_page_lock_mem(tsz);
     item->dlpmt = (g4c_lpmtree_t*)g4c_alloc_dev_mem(tsz);
     memcpy(item->hlpmt, lpmt, tsz);
-
+    
     g4c_h2d_async(item->hlpmt, item->dlpmt, tsz, s);
     free(lpmt);
     free(ents);
@@ -101,7 +113,8 @@ int g_nr_stream = 3;
 int main(int argc, char *argv[])
 {
     eval_init();
-    rtlu_eval *items = (rtlu_eval*)malloc(sizeof(rtlu_eval)*g_nr_stream);
+    
+    struct rtlu_eval *items = (struct rtlu_eval*)malloc(sizeof(struct rtlu_eval)*g_nr_stream);
     int *streams = (int*)malloc(sizeof(int)*g_nr_stream);
 
     int nrpkts[] = { 256, 512, 1024, 2048, 1024*3, 4096, 1024*5, 1024*6,

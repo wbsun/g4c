@@ -2,8 +2,13 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <errno.h>
+#include <time.h>
+#include <string.h>
 #include "../g4c.h"
 #include "../lookup.h"
+#include "utils.h"
+
+int g_nbits = 1;
 
 struct rtlu_eval {
     uint32_t *haddrs;
@@ -66,19 +71,22 @@ gen_rt_entries(g4c_rte_t **ents, int n)
 static int
 prepare_eval_item(rtlu_eval *item, int n, int nrt, int s)
 {
-    g4c_rte_t *ents;
+    g4c_rte_t *ents = 0;
     gen_rt_entries(&ents, nrt);
     
-    g4c_lpmtree_t *lpmt = g4c_build_lpm_tree(ents, nrt, 2, 0);
+    g4c_lpmtree_t *lpmt = g4c_build_lpm_tree(ents, nrt, g_nbits, 0);
 
     size_t tsz = sizeof(g4c_lpm_tree)+sizeof(g4c_lpmnode2b_t)*lpmt->nnodes;
     item->hlpmt = (g4c_lpmtree_t*)g4c_alloc_page_lock_mem(tsz);
     item->dlpmt = (g4c_lpmtree_t*)g4c_alloc_dev_mem(tsz);
     memcpy(item->hlpmt, lpmt, tsz);
-    g4c_h2d_async(item->hlpmt, item->dlpmt, s);
+
+    g4c_h2d_async(item->hlpmt, item->dlpmt, tsz, s);
     free(lpmt);
+    free(ents);
 
     item->n = n;
+    item->haddrs = 0;
     gen_ip_addrs(&item->haddrs, n);
     item->daddrs = (uint32_t*)g4c_alloc_dev_mem(sizeof(uint32_t)*n);
     item->hports = (uint8_t*)g4c_alloc_page_lock_mem(sizeof(uint8_t)*n);
@@ -88,16 +96,16 @@ prepare_eval_item(rtlu_eval *item, int n, int nrt, int s)
 }
 
 
-int g_nr_stream = 4;
+int g_nr_stream = 3;
 
 int main(int argc, char *argv[])
 {
     eval_init();
-    
     rtlu_eval *items = (rtlu_eval*)malloc(sizeof(rtlu_eval)*g_nr_stream);
     int *streams = (int*)malloc(sizeof(int)*g_nr_stream);
 
-    int nrpkts[] = { 1<<10, 1<<12, 1<<14, 1<<16};
+    int nrpkts[] = { 256, 512, 1024, 2048, 1024*3, 4096, 1024*5, 1024*6,
+		     1024*7, 1024*8};
 
     for (int i=0; i<g_nr_stream; i++) {
 	streams[i] = g4c_alloc_stream();
@@ -105,27 +113,52 @@ int main(int argc, char *argv[])
     }
     g4c_stream_sync(streams[0]);
 
+    {
+	// warming up:
+	timingval tv = timing_start();
+	for (int i=0; i<g_nr_stream; i++) {
+	    g4c_h2d_async(items[i].haddrs, items[i].daddrs,
+			  nrpkts[0]*sizeof(uint32_t), streams[i]);
+	    g4c_ipv4_gpu_lookup(items[i].dlpmt, items[i].daddrs,
+				items[i].dports, g_nbits, nrpkts[0], streams[i]);
+	    g4c_d2h_async(items[i].dports, items[i].hports, sizeof(uint8_t)*nrpkts[0],
+			  streams[i]);
+	}
+	for (int i=0; i<g_nr_stream; i++)
+	    g4c_stream_sync(streams[i]);
+	int64_t usec = timing_stop(&tv)/g_nr_stream;
+	printf("Warming up test:\nGPU size %d pkts, time us %ld, rate %.3lf Mpkts/s\n\n",
+	       nrpkts[0], usec, ((double)nrpkts[0])/(double)usec);
+    }
+
     for (int j=0; j<sizeof(nrpkts)/sizeof(int); j++) {
 	timingval tv = timing_start();
 	for (int i=0; i<g_nr_stream; i++) {
 	    g4c_h2d_async(items[i].haddrs, items[i].daddrs,
 			  nrpkts[j]*sizeof(uint32_t), streams[i]);
 	    g4c_ipv4_gpu_lookup(items[i].dlpmt, items[i].daddrs,
-				items[i].dports, 2, nrpkts[j], streams[i]);
+				items[i].dports, g_nbits, nrpkts[j], streams[i]);
 	    g4c_d2h_async(items[i].dports, items[i].hports, sizeof(uint8_t)*nrpkts[j],
 			  streams[i]);
 	}
 	for (int i=0; i<g_nr_stream; i++)
 	    g4c_stream_sync(streams[i]);
-	int64_t usec = timing_stop(&tv)/g_nr_streams;
+	int64_t usec = timing_stop(&tv)/g_nr_stream;
 	printf("GPU size %d pkts, time us %ld, rate %.3lf Mpkts/s\n",
 	       nrpkts[j], usec, ((double)nrpkts[j])/(double)usec);
 
-	timingval tvc timing_start();
-	for(int i=0; i<nrpkts[j]; i++) {
-	    items[i].hports[i] = g4c_ipv4_lookup(items[i].hlpmt, items[i].haddrs[i]);
+	timingval tvc = timing_start();
+	for(int i=0; i<nrpkts[j]; i+=8) {
+	    items[0].hports[i] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i]);
+	    items[0].hports[i+1] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i+1]);
+	    items[0].hports[i+2] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i+2]);
+	    items[0].hports[i+3] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i+3]);
+	    items[0].hports[i+4] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i+4]);
+	    items[0].hports[i+5] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i+5]);
+	    items[0].hports[i+6] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i+6]);
+	    items[0].hports[i+7] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i+7]);
 	}
-	int64_t cus = timing_stop(&tv2);
+	int64_t cus = timing_stop(&tvc);
 	printf("CPU size %d pkts, time us %ld, rate %.3lf Mpkts/s\n\n",
 	       nrpkts[j], cus, ((double)nrpkts[j])/(double)cus);
     }

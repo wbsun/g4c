@@ -5,9 +5,8 @@
 #include <errno.h>
 #include <iostream>
 using namespace std;
-
-#include "utils.h"
 #include "../g4c.h"
+#include "utils.h"
 #include "../ac.h"
 
 
@@ -158,6 +157,10 @@ int main(int argc, char *argv[])
 
     int nrs[] = { 1<<10, 1<<12, 1<<13, 1<<14};
     int strides[] = { 32, 64, 128, 256 };
+
+    printf("warm up test:\n");
+    do_eval(nrs[0], strides[0]);
+    cout<<endl;
 
     for (int nr = 0; nr < sizeof(nrs)/sizeof(int); nr++) {
 	for (int stride = 0;

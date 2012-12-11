@@ -17,7 +17,7 @@ ACDEVDEPS=../ac_dev.cu ../ac.hh ../ac.h ../g4c.hh ../g4c.h
 EACDEPS=evalac.cc ../g4c.h ../ac.h utils.h
 
 ELUSRCS=$(COMMSRCS) ../lookup.cu evallu.cc
-ELUOBJS=$(addsuffix -eval.o, $(basename ($notdir $(ELUSRCS))))
+ELUOBJS=$(addsuffix -eval.o, $(basename $(notdir $(ELUSRCS))))
 LUDEPS=../lookup.cu ../lookup.h ../g4c.h
 ELUDEPS=evallu.cc ../g4c.h ../lookup.h utils.h
 
@@ -29,7 +29,7 @@ elu: $(ELUOBJS)
 eac: $(EACOBJS)
 	$(NVCC) $(NVCCFLAGS) $^ -o $@
 
-elu-eval.o: $(ELUDEPS)
+evallu-eval.o: $(ELUDEPS)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 lookup-eval.o: $(LUDEPS)

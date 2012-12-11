@@ -34,8 +34,8 @@ inline static int
 eval_init() {
     int r = g4c_init(G4C_DEFAULT_NR_STREAMS,
 		     G4C_DEFAULT_MEM_SIZE,
-		     G4C_DEFAULT_WCMEM_SIZE,
-		     G4C_DEFAULT_MEM_SIZE+G4C_DEFAULT_WCMEM_SIZE);
+		     0,
+		     G4C_DEFAULT_MEM_SIZE);
     return r;
 }
 

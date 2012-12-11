@@ -100,22 +100,24 @@ public:
     }
 
     void clear() {
-	trie_node<BITS> *node = head.next;
+	trie_node<BITS> *node = head.next, *tmp;
 	while (node != &head) {
-	    node = node->next;
-	    delete node->prev;
+	    tmp = node->next;
+	    delete node;
+	    node = tmp;
 	}
 	head.next = head.prev = 0;
     }    
 };
 
 template<class node_type, int BITS> static g4c_lpm_tree *
-__build_lpm_tree(node_store<BITS> store,
+__build_lpm_tree(node_store<BITS> *store,
 		 g4c_ipv4_rt_entry *ents, int n, uint8_t fport,
 		 node_type dummy)
 {
-    g4c_lpm_tree * lpmt = store.build_lpm_tree(ents, n, fport, dummy);
-    store.clear();
+    g4c_lpm_tree * lpmt = store->build_lpm_tree(ents, n, fport, dummy);
+    store->clear();
+    delete store;
     return lpmt;
 }
 
@@ -125,13 +127,13 @@ g4c_build_lpm_tree(g4c_ipv4_rt_entry *ents, int n, int nbits, uint8_t fport)
     switch(nbits) {
     case 1:
 	return __build_lpm_tree(
-	    node_store<1>(), ents, n, fport, g4c_lpm_1b_node());
+	    new node_store<1>(), ents, n, fport, g4c_lpm_1b_node());
     case 2:
 	return __build_lpm_tree(
-	    node_store<2>(), ents, n, fport, g4c_lpm_2b_node());
+	    new node_store<2>(), ents, n, fport, g4c_lpm_2b_node());
     case 4:
 	return __build_lpm_tree(
-	    node_store<4>(), ents, n, fport, g4c_lpm_4b_node());
+	    new node_store<4>(), ents, n, fport, g4c_lpm_4b_node());
     default:
 	return 0;
     }

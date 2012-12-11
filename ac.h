@@ -20,7 +20,7 @@ extern "C" {
 #define AC_MATCH_CHAR_CHECK      0x80000000
 
 
-#define AC_ALPHABET_SIZE 128
+#define AC_ALPHABET_SIZE 256
 	
     typedef struct _ac_state_t {
         int id;
@@ -124,6 +124,9 @@ extern "C" {
      */
     int ac_gmatch(char *dstrs, int nstrs, int stride, int *dlens,
                   unsigned int *dress, ac_dev_machine_t *dacm, int s);
+
+    int ac_gmatch2(char *dstrs, int n, int stride, int *dlens, unsigned int *dress,
+                   ac_dev_machine_t *dacm, int s, unsigned int mtype);
 
     /*
      * Seems unneeded.

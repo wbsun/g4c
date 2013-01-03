@@ -9,6 +9,7 @@
 #include "utils.h"
 
 int g_nbits = 1;
+int g_nrt = 1024;
 
 struct rtlu_eval {
     uint32_t *haddrs;
@@ -112,6 +113,15 @@ int g_nr_stream = 3;
 
 int main(int argc, char *argv[])
 {
+    if (argc > 1)
+	g_nrt = atoi(argv[1]);
+    if (argc > 2)
+	g_nbits = atoi(argv[2]);
+    if (argc > 3)
+	g_nr_stream = atoi(argv[3]);
+
+    printf("G4C IP Lookup benchmakr, %d entries, %d bits table, %d streams\n",
+	   g_nrt, g_nbits, g_nr_stream);
     eval_init();
     
     struct rtlu_eval *items = (struct rtlu_eval*)malloc(sizeof(struct rtlu_eval)*g_nr_stream);
@@ -122,7 +132,7 @@ int main(int argc, char *argv[])
 
     for (int i=0; i<g_nr_stream; i++) {
 	streams[i] = g4c_alloc_stream();
-	prepare_eval_item(items+i, nrpkts[sizeof(nrpkts)/sizeof(int)-1], 16, streams[0]);
+	prepare_eval_item(items+i, nrpkts[sizeof(nrpkts)/sizeof(int)-1], g_nrt, streams[0]);
     }
     g4c_stream_sync(streams[0]);
 

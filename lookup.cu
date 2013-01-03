@@ -336,8 +336,8 @@ gpu_lpm_lookup_of(int nbits,
 extern "C" int
 g4c_ipv4_gpu_lookup_of(
     g4c_lpm_tree *dlpmt,
-    uint32_t *daddr_buf, int16_t adoffset, int16_t adstride,
-    uint8_t *dport_buf, int16_t ptoffset, int16_t ptstride,
+    uint32_t *daddrs, int16_t adoffset, int16_t adstride,
+    uint8_t *dports, int16_t ptoffset, int16_t ptstride,
     int nbits, int n, int s)
 {
     if (!s) {

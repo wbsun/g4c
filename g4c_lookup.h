@@ -5,6 +5,11 @@
 extern "C" {
 #endif
 
+#define G4C_LUT_LEVEL_KEY 't'
+#define G4C_LUT_MAX_PORT_KEY 'p'
+    
+    void g4c_lut_init(int n, char *keys, int *values);
+
 #define G4C_LPM_NULL_NODE 0
 
     typedef struct {

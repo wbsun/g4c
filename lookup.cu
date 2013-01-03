@@ -7,7 +7,29 @@
 
 #include <vector>
 #include <algorithm>
+#include <map>
+#include <string>
 using namespace std;
+
+static int test_level = 0;
+static int max_port = 1;
+
+extern "C" void
+g4c_lut_init(int n, char *keys[], int *values)
+{    
+    for (int i=0; i<n; i++) {
+	switch(keys[i]) {
+	case G4C_LUT_LEVEL_KEY:
+	    test_level = values[i];
+	    break;
+	case G4C_LUT_MAX_PORT_KEY:
+	    max_port = values[i];
+	    break;
+	default:
+	    break;
+	}
+    }
+}
 
 template<int BITS>
 class trie_node {
@@ -301,6 +323,7 @@ g4c_ipv4_gpu_static_lookup(uint32_t *dsrt, uint32_t *daddrs,
 	return -1;
     }
     cudaStream_t stream = g4c_get_stream(s);
+    n = g4c_round_up(n, 32);
     gpu_static_lookup<<<n/32, 32, 0, stream>>>(dsrt, daddrs, dports, n);
     return 0;
 }
@@ -333,6 +356,33 @@ gpu_lpm_lookup_of(int nbits,
     }
 }
 
+template<typename node_type> __global__ void
+gpu_lpm_lookup_of_t1(int nbits,
+		     node_type *nodes,
+		     uint32_t *addrs, int16_t adoffset, int16_t adstride,
+		     uint8_t *ports, int16_t ptoffset, int16_t ptstride,
+		     int n, int mp)
+{
+    int id = threadIdx.x + blockDim.x * blockIdx.x;
+
+    uint32_t addr = *(uint32_t*)(
+	g4c_ptr_add(addrs, (uint32_t)(adstride*id+adoffset)));
+    uint8_t *pt = ports + ptstride*id + ptoffset;
+    __syncthreads();
+    *pt = addr%mp;
+}
+
+template<typename node_type> __global__ void
+gpu_lpm_lookup_of_t2(int nbits,
+		     node_type *nodes,
+		     uint32_t *addrs, int16_t adoffset, int16_t adstride,
+		     uint8_t *ports, int16_t ptoffset, int16_t ptstride,
+		     int n, int mp)
+{
+    int id = threadIdx.x + blockDim.x * blockIdx.x;
+    ports[ptstride*id + ptoffset] = id%mp;
+}
+
 extern "C" int
 g4c_ipv4_gpu_lookup_of(
     g4c_lpm_tree *dlpmt,
@@ -350,25 +400,66 @@ g4c_ipv4_gpu_lookup_of(
     
     switch(nbits) {
     case 1:
-	gpu_lpm_lookup_of<<<n/32, 32, 0, stream>>>(
-	    nbits, (g4c_lpm_1b_node*)&(dlpmt->nodes),
-	    daddrs, adoffset, adstride,
-	    dports, ptoffset, ptstride,
-	    n);
+	if (test_level == 0)
+	    gpu_lpm_lookup_of<<<n/32, 32, 0, stream>>>(
+		nbits, (g4c_lpm_1b_node*)&(dlpmt->nodes),
+		daddrs, adoffset, adstride,
+		dports, ptoffset, ptstride,
+		n);
+	else if (test_level == 1)
+	    gpu_lpm_lookup_of_t1<<<n/32, 32, 0, stream>>>(
+		nbits, (g4c_lpm_1b_node*)&(dlpmt->nodes),
+		daddrs, adoffset, adstride,
+		dports, ptoffset, ptstride,
+		n, max_port);
+	else if (test_level == 2)
+	    gpu_lpm_lookup_of_t2<<<n/32, 32, 0, stream>>>(
+		nbits, (g4c_lpm_1b_node*)&(dlpmt->nodes),
+		daddrs, adoffset, adstride,
+		dports, ptoffset, ptstride,
+		n, max_port);
 	break;
     case 2:
-	gpu_lpm_lookup_of<<<n/32, 32, 0, stream>>>(
-	    nbits, (g4c_lpm_2b_node*)&(dlpmt->nodes),
-	    daddrs, adoffset, adstride,
-	    dports, ptoffset, ptstride,
-	    n);
+	if (test_level == 0)
+	    gpu_lpm_lookup_of<<<n/32, 32, 0, stream>>>(
+		nbits, (g4c_lpm_2b_node*)&(dlpmt->nodes),
+		daddrs, adoffset, adstride,
+		dports, ptoffset, ptstride,
+		n);
+	else if (test_level == 1)
+	    gpu_lpm_lookup_of_t1<<<n/32, 32, 0, stream>>>(
+		nbits, (g4c_lpm_2b_node*)&(dlpmt->nodes),
+		daddrs, adoffset, adstride,
+		dports, ptoffset, ptstride,
+		n, max_port);
+	else if (test_level == 2)
+	    gpu_lpm_lookup_of_t2<<<n/32, 32, 0, stream>>>(
+		nbits, (g4c_lpm_2b_node*)&(dlpmt->nodes),
+		daddrs, adoffset, adstride,
+		dports, ptoffset, ptstride,
+		n, max_port);
+		
 	break;
     case 4:
-	gpu_lpm_lookup_of<<<n/32, 32, 0, stream>>>(
-	    nbits, (g4c_lpm_4b_node*)&(dlpmt->nodes),
-	    daddrs, adoffset, adstride,
-	    dports, ptoffset, ptstride,
-	    n);
+	if (test_level == 0)
+	    gpu_lpm_lookup_of<<<n/32, 32, 0, stream>>>(
+		nbits, (g4c_lpm_4b_node*)&(dlpmt->nodes),
+		daddrs, adoffset, adstride,
+		dports, ptoffset, ptstride,
+		n);
+	else if (test_level == 1)
+	    gpu_lpm_lookup_of_t1<<<n/32, 32, 0, stream>>>(
+		nbits, (g4c_lpm_4b_node*)&(dlpmt->nodes),
+		daddrs, adoffset, adstride,
+		dports, ptoffset, ptstride,
+		n, max_port);
+	else if (test_level == 2)
+	    gpu_lpm_lookup_of_t2<<<n/32, 32, 0, stream>>>(
+		nbits, (g4c_lpm_4b_node*)&(dlpmt->nodes),
+		daddrs, adoffset, adstride,
+		dports, ptoffset, ptstride,
+		n, max_port);
+	
 	break;
     default:
 	return 1;

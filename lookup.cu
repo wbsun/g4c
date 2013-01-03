@@ -15,7 +15,7 @@ static int test_level = 0;
 static int max_port = 1;
 
 extern "C" void
-g4c_lut_init(int n, char *keys[], int *values)
+g4c_lut_init(int n, char *keys, int *values)
 {    
     for (int i=0; i<n; i++) {
 	switch(keys[i]) {

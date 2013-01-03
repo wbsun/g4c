@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "lookup.h"
+#include "g4c_lookup.h"
 #include "g4c.hh"
 #include <cuda.h>
 
@@ -255,8 +255,14 @@ g4c_ipv4_gpu_lookup(g4c_lpm_tree *dlpmt,
 		    uint32_t *daddrs,
 		    uint8_t *dports,
 		    int nbits, int n, int s)
-{
+{    
+    if (!s) {
+	fprintf(stderr, "g4c_ipv4_gpu_lookup: error stream is 0\n");
+	return -1;
+    }
     cudaStream_t stream = g4c_get_stream(s);
+
+    n = g4c_round_up(n, 32);
 
     switch(nbits) {
     case 1:
@@ -290,8 +296,85 @@ extern "C" int
 g4c_ipv4_gpu_static_lookup(uint32_t *dsrt, uint32_t *daddrs,
 			   uint8_t *dports, int n, int s)
 {
+    if (!s) {
+	fprintf(stderr, "g4c_ipv4_gpu_static_lookup: error stream is 0\n");
+	return -1;
+    }
     cudaStream_t stream = g4c_get_stream(s);
     gpu_static_lookup<<<n/32, 32, 0, stream>>>(dsrt, daddrs, dports, n);
     return 0;
 }
+
+
+// With offset support:
+
+template<typename node_type> __global__ void
+gpu_lpm_lookup_of(int nbits,
+		  node_type *nodes,
+		  uint32_t *addrs, int16_t adoffset, int16_t adstride,
+		  uint8_t *ports, int16_t ptoffset, int16_t ptstride,
+		  int n)
+{
+    int id = threadIdx.x + blockDim.x * blockIdx.x;
+
+    uint32_t val, addr = *(uint32_t*)(
+	g4c_ptr_add(addrs, (uint32_t)(adstride*id+adoffset)));
+    uint8_t *pt = ports + ptstride*id + ptoffset;
+    __syncthreads();
+    int ite;
+    int nid=0;
+    for_u32_bits_h2l(32-nbits, 0, addr, val, ite, nbits) {
+	if (nodes[nid].children[val]) {
+	    nid = nodes[nid].children[val];
+	} else {
+	    *pt = nodes[nid].port;
+	    break;
+	}
+    }
+}
+
+extern "C" int
+g4c_ipv4_gpu_lookup_of(
+    g4c_lpm_tree *dlpmt,
+    uint32_t *daddr_buf, int16_t adoffset, int16_t adstride,
+    uint8_t *dport_buf, int16_t ptoffset, int16_t ptstride,
+    int nbits, int n, int s)
+{
+    if (!s) {
+	fprintf(stderr, "g4c_ipv4_gpu_lookup_of: error stream is 0\n");
+	return -1;
+    }
+    cudaStream_t stream = g4c_get_stream(s);
+
+    n = g4c_round_up(n, 32);
+    
+    switch(nbits) {
+    case 1:
+	gpu_lpm_lookup_of<<<n/32, 32, 0, stream>>>(
+	    nbits, (g4c_lpm_1b_node*)&(dlpmt->nodes),
+	    daddrs, adoffset, adstride,
+	    dports, ptoffset, ptstride,
+	    n);
+	break;
+    case 2:
+	gpu_lpm_lookup_of<<<n/32, 32, 0, stream>>>(
+	    nbits, (g4c_lpm_2b_node*)&(dlpmt->nodes),
+	    daddrs, adoffset, adstride,
+	    dports, ptoffset, ptstride,
+	    n);
+	break;
+    case 4:
+	gpu_lpm_lookup_of<<<n/32, 32, 0, stream>>>(
+	    nbits, (g4c_lpm_4b_node*)&(dlpmt->nodes),
+	    daddrs, adoffset, adstride,
+	    dports, ptoffset, ptstride,
+	    n);
+	break;
+    default:
+	return 1;
+    }
+
+    return 0;
+}
+    
 

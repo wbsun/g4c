@@ -5,7 +5,7 @@
 #include <time.h>
 #include <string.h>
 #include "../g4c.h"
-#include "../lookup.h"
+#include "../g4c_lookup.h"
 #include "utils.h"
 
 int g_nbits = 1;

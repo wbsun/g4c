@@ -7,7 +7,7 @@
 using namespace std;
 #include "../g4c.h"
 #include "utils.h"
-#include "../ac.h"
+#include "../g4c_ac.h"
 
 static int g_rand_lens = 0;
 

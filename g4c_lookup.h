@@ -58,6 +58,12 @@ extern "C" {
     int g4c_ipv4_gpu_lookup(g4c_lpm_tree *dlpmtrie,
                             uint32_t *daddrs, uint8_t *dports,
 			    int nbits, int n, int s);
+
+    int g4c_ipv4_gpu_lookup_of(
+        g4c_lpm_tree *dlpmt,
+        uint32_t *daddr_buf, int16_t adoffset, int16_t adstride,
+        uint8_t *dport_buf, int16_t ptoffset, int16_t ptstride,
+        int nbits, int n, int s);
     
     g4c_lpm_tree* g4c_build_lpm_tree(g4c_ipv4_rt_entry *ents, int n,
                                      int nbits, uint8_t fport);

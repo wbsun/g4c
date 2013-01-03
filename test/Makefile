@@ -12,14 +12,14 @@ EACOBJS=$(addsuffix -eval.o, $(basename $(notdir $(EACSRCS))))
 
 G4CDEPS=../g4c.cu ../g4c.hh ../g4c.h
 G4CMMDEPS=../g4c_mm.cc ../g4c_mm.h ../g4c_mm.hh ../g4c.h
-ACDEPS=../ac.cc ../ac.hh ../ac.h ../g4c.h
-ACDEVDEPS=../ac_dev.cu ../ac.hh ../ac.h ../g4c.hh ../g4c.h
-EACDEPS=evalac.cc ../g4c.h ../ac.h utils.h
+ACDEPS=../ac.cc ../ac.hh ../g4c_ac.h ../g4c.h
+ACDEVDEPS=../ac_dev.cu ../ac.hh ../g4c_ac.h ../g4c.hh ../g4c.h
+EACDEPS=evalac.cc ../g4c.h ../g4c_ac.h utils.h
 
 ELUSRCS=$(COMMSRCS) ../lookup.cu evallu.cc
 ELUOBJS=$(addsuffix -eval.o, $(basename $(notdir $(ELUSRCS))))
-LUDEPS=../lookup.cu ../lookup.h ../g4c.h
-ELUDEPS=evallu.cc ../g4c.h ../lookup.h utils.h
+LUDEPS=../lookup.cu ../g4c_lookup.h ../g4c.h
+ELUDEPS=evallu.cc ../g4c.h ../g4c_lookup.h utils.h
 
 all: elu eac
 

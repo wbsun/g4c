@@ -2,7 +2,7 @@
 #define __G4C_AC_HH__
 
 // for C
-#include "ac.h"
+#include "g4c_ac.h"
 
 #include <cstdio>
 #include <vector>

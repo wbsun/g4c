@@ -18,9 +18,9 @@ MMTESTOBJS=g4c_mm-mm-test.o
 
 G4CDEPS=g4c.cu g4c.hh g4c.h
 G4CMMDEPS=g4c_mm.cc g4c_mm.h g4c_mm.hh g4c.h
-ACDEPS=ac.cc ac.hh ac.h g4c.h
-ACDEVDEPS=ac_dev.cu ac.hh ac.h g4c.hh g4c.h
-LPMDEPS=lookup.cu lookup.h g4c.hh g4c.h
+ACDEPS=ac.cc ac.hh g4c_ac.h g4c.h
+ACDEVDEPS=ac_dev.cu ac.hh g4c_ac.h g4c.hh g4c.h
+LPMDEPS=lookup.cu g4c_lookup.h g4c.hh g4c.h
 
 
 all: libg4c
@@ -78,10 +78,14 @@ g4c_mm-mm-test.o: $(G4CMMDEPS)
 install-lib: libg4c.so
 	cp libg4c.so /usr/lib/
 	cp g4c.h /usr/include/
+	cp g4c_lookup.h /usr/include/
+	cp g4c_ac.h /usr/include/
 
 uninstall-lib:
 	rm -f /usr/lib/libg4c.so
 	rm -f /usr/include/g4c.h
+	rm -f /usr/include/g4c_lookup.h
+	rm -r /usr/include/g4c_ac.h
 
 
 clean:

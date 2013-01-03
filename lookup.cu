@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "lookup.h"
+#include "g4c_lookup.h"
 #include "g4c.hh"
 #include <cuda.h>
 

@@ -777,6 +777,12 @@ int main(int argc, char *argv[])
     int ns = _build_goto(pptns, np, &cl);
     printf(" %d states in total\n", ns);
 
+    int nrfs = 0;
+    for (int k=0; k<cl.states.size(); k++)
+	if (cl.states[k]->fail)
+	    nrfs++;
+    printf(" %d failue states\n", nrfs);
+	
     State *rt;
     /*rt = _match_pattern(ptns+6, &cl);
     if (rt->outputs.size() > 0)
@@ -789,7 +795,8 @@ int main(int argc, char *argv[])
 	printf("\nFound %d\n", np/2);
     else
 	printf("\nFailed %d\n", np/2);
-    
+
+    ns = getchar();   
     
     return 0;
 }

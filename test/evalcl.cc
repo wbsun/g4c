@@ -9,7 +9,7 @@
 
 #define PKT_LEN 16
 
-int g_debug = 1;
+int g_debug = 0;
 
 #include <sys/time.h>
 static void
@@ -86,7 +86,7 @@ gpu_bench(g4c_classifier_t *hgcl, g4c_classifier_t *dgcl,
     g4c_stream_sync(streams[ns-1]);
     int64_t us = timing_stop(&tv);
     
-    printf("Done warm up, time %12ld us, rate %8.6lf Mops/s\n\n",
+    printf("Done warm up,      time %9ld us, rate %12.6lf Mops/s\n",
 	   us, ((double)npkts)/(double)us);
 
     tv = timing_start();    
@@ -96,9 +96,12 @@ gpu_bench(g4c_classifier_t *hgcl, g4c_classifier_t *dgcl,
 			      res_stride, res_ofs, streams[i]);
 	g4c_d2h_async(dpress[i], hpress[i], npkts*res_stride, streams[i]);
     }
+
+    for (int i=0; i<ns; i++)
+	g4c_stream_sync(streams[i]);
     us = timing_stop(&tv);
 
-    printf("Done benchmarking, time %12ld us, rate %8.6lf Mops/s\n\n",
+    printf("Done benchmarking, time %9ld us, rate %12.6lf Mops/s\n\n",
 	   us/ns, ((double)npkts*ns)/(double)us);    
 }
 
@@ -106,7 +109,7 @@ static void
 cpu_bench(g4c_classifier_t *gcl, uint8_t *ppkts[], int npkts,
 	  int *press[], uint32_t res_stride, uint32_t res_ofs, int nbatch)
 {
-    printf("CPU Bench\n");
+    printf("CPU Bench:\n");
     timingval tv = timing_start();
     for (int b=0; b<nbatch; b++) {
 	for (int i=0; i<npkts; i++) {
@@ -115,8 +118,11 @@ cpu_bench(g4c_classifier_t *gcl, uint8_t *ppkts[], int npkts,
 	}
     }
     int64_t us = timing_stop(&tv);
+
+    for (int b=0; b<nbatch; b++)
+	memset(press[b], 0, sizeof(int)*npkts*res_stride);
     
-    printf("Done benchmarking, time %12ld us, rate %8.6lf Mops/s\n\n",
+    printf("Done benchmarking, time %9ld us, rate %12.6lf Mops/s\n\n",
 	   us/nbatch, ((double)npkts*nbatch)/(double)us);    
 }
 	 
@@ -182,6 +188,7 @@ int main(int argc, char *argv[])
     eval_init();
     printf(" Done.\n");
 
+    printf("Preparing data... ");
     for (int i=0; i<nstream; i++) {
 	hppkts[i] = (uint8_t*)g4c_alloc_page_lock_mem(npkts*PKT_LEN);
 	dppkts[i] = (uint8_t*)g4c_alloc_dev_mem(npkts*PKT_LEN);
@@ -190,15 +197,11 @@ int main(int argc, char *argv[])
 	streams[i] = g4c_alloc_stream();
 	assert(hppkts[i] && dppkts[i] && hpress[i] && dpress[i] && streams[i]);
 
-	printf("Generating %d-th packets batch... ", i);
 	gen_rand_pkts(hppkts[i], npkts);
-	printf(" Done.\n");
     }
-
-    printf("press any key to continue:\n"); getchar();
+    printf(" Done.\n");
 
     printf("Build classifier... ");
-    getchar();
     gcl = g4c_create_classifier(ptns, nptns, 1, streams[0]);
     if (gcl)
 	printf(" Done.\n");

@@ -266,3 +266,12 @@ ac_gmatch_finish(int nstrs, unsigned int *dress, unsigned int *hress,
 			 nstrs*AC_ALPHABET_SIZE*sizeof(unsigned int),
 			 s);
 }
+
+
+extern "C" int
+ac_gmatch2_ofs(char *dstrs, int n, int stride, int *dlens, int *dress,
+	       ac_dev_machine_t *dacm, int s, unsigned int mtype,
+	       uint32_t pkt_ofs, uint32_t res_stride, uint32_t res_ofs)
+{
+    return 0;
+}

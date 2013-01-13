@@ -1,6 +1,8 @@
 #ifndef __G4C_AC_H__
 #define __G4C_AC_H__
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -127,6 +129,12 @@ extern "C" {
 
     int ac_gmatch2(char *dstrs, int n, int stride, int *dlens, unsigned int *dress,
                    ac_dev_machine_t *dacm, int s, unsigned int mtype);
+
+    // res_stride and res_ofs are for int type, not bytes offset or size
+    int ac_gmatch2_ofs(char *dstrs, int n, int stride, int *dlens, int *dress,
+		       ac_dev_machine_t *dacm, int s, unsigned int mtype,
+		       uint32_t pkt_ofs, uint32_t res_stride, uint32_t res_ofs);
+    
 
     /*
      * Seems unneeded.

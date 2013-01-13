@@ -14,7 +14,7 @@
 
 using namespace std;
 
-static int verbose_level = 1;
+static int verbose_level = 0;
 
 extern "C" void
 g4c_cl_init(int n, char *keys, int *values)
@@ -693,12 +693,9 @@ g4c_cpu_classify_pkt(g4c_classifier_t *gcl, uint8_t *ttlptr)
     r[4] = cl_res(gcl->dp_ress, rid, gcl->res_stride);
 
     for (int i=0; i<gcl->res_stride; i++) {
-	uint32_t v = r[0][i] & r[1][i];
+	uint32_t v = r[0][i] & r[1][i] & r[2][i] & r[3][i] & r[4][i];
 	if (v) {
-	    v &= r[2][i] & r[3][i] & r[4][i];
-	    if (v) {
-		return __builtin_ffs(v)-1 + i*32;
-	    }
+	    return __builtin_ffs(v)-1 + i*32;
 	}
     }
     
@@ -709,27 +706,10 @@ g4c_cpu_classify_pkt(g4c_classifier_t *gcl, uint8_t *ttlptr)
 #define CL_BLK_SIZE (CL_PKTS_PER_BLK*4)
 
 __global__ void
-gpu_cl_1(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs,
-	 int *ress, uint32_t res_stride, uint32_t res_ofs)
-{
-    __shared__ uint32_t* comp_ress[CL_BLK_SIZE];
-    int pktid = threadIdx.x + blockIdx.x*blockDim.x;
-    uint8_t *pkt = data + stride*pktid;
-
-    comp_ress[threadIdx.x + threadIdx.y*blockDim.x] = *(uint32_t**)pkt;
-
-    __syncthreads();
-
-    if (threadIdx.y==0) {
-	*(ress + pktid*res_stride + res_ofs) = -1;
-    }    
-}
-
-__global__ void
 gpu_cl_0(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs,
 	 int *ress, uint32_t res_stride, uint32_t res_ofs)
 {
-    __shared__ uint32_t* comp_ress[CL_BLK_SIZE];
+    __shared__ uint32_t* comp_ress[CL_PKTS_PER_BLK*5];
     int pktid = threadIdx.x + blockIdx.x*blockDim.x;
     uint8_t *pkt = data + stride*pktid;
 
@@ -769,26 +749,38 @@ gpu_cl_0(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs
 	
 	int rid = gcl->dev_sp_trs[(p & PORT_MASK)];
 	comp_ress[threadIdx.x + (CL_PKTS_PER_BLK*3)] = cl_res(gcl->dev_sp_ress, rid, gcl->res_stride);
-	// rid = gcl->dev_dp_trs[((p>>16) & PORT_MASK)];
-	// comp_ress[threadIdx.x + (CL_PKTS_PER_BLK<<2)] = cl_res(gcl->dev_dp_ress, rid, gcl->res_stride);
+	rid = gcl->dev_dp_trs[((p>>16) & PORT_MASK)];
+	comp_ress[threadIdx.x + (CL_PKTS_PER_BLK<<2)] = cl_res(gcl->dev_dp_ress, rid, gcl->res_stride);
     }
 
     __syncthreads();
 
-    if (threadIdx.y==5) {
+    if (threadIdx.y==3) {
 	uint32_t *r[5];
 	r[0] = comp_ress[threadIdx.x];
 	r[1] = comp_ress[threadIdx.x + CL_PKTS_PER_BLK];
-	r[2] = comp_ress[threadIdx.x + CL_PKTS_PER_BLK<<1];
+	r[2] = comp_ress[threadIdx.x + (CL_PKTS_PER_BLK<<1)];
 	r[3] = comp_ress[threadIdx.x + CL_PKTS_PER_BLK*3];
-	r[4] = comp_ress[threadIdx.x + CL_PKTS_PER_BLK<<2];
+	r[4] = comp_ress[threadIdx.x + (CL_PKTS_PER_BLK<<2)];
 
 	// #pragma unroll
 	for (int i=0; i<gcl->res_stride; i++) {
-	    uint32_t v = r[0][i] & r[1][i] & r[2][i] & r[3][i] & r[4][i];;
+	    uint32_t v = r[0][i] & r[1][i];// & r[2][i] & r[3][i] & r[4][i];;
+
+	    // if (v) {
+		// *(ress + pktid*res_stride + res_ofs) = __ffs(v)-1 + i*32;
+		// return;
+	    // }
+	    
 	    if (v) {
-		*(ress + pktid*res_stride + res_ofs) = __ffs(v)-1 + i*32;
-		return;
+		v &= r[2][i] & r[3][i];
+		if (v) {
+		    v &= r[4][i];
+		    if (v) {
+			*(ress + pktid*res_stride + res_ofs) = __ffs(v)-1 + i*32;
+			return;
+		    }
+		}
 	    }		
 	}
 	*(ress + pktid*res_stride + res_ofs) = -1;
@@ -808,14 +800,16 @@ g4c_gpu_classify_pkts(g4c_classifier_t *dgcl, int npkts,
     dim3 griddim(ng, 1);
     cudaStream_t s = g4c_get_stream(stream);
 
-    if (verbose_level)
-	printf("GPU CL kernel: npkts %d, %d X %d grid, %d X %d block\n", npkts, ng, 1, CL_PKTS_PER_BLK, 4);
+    if (verbose_level > 1)
+	printf("GPU CL kernel: npkts %d, %d X %d grid, %d X %d block, res_stride %u, ofs %u\n",
+	       npkts, ng, 1, CL_PKTS_PER_BLK, 4, res_stride, res_ofs);
 
     gpu_cl_0<<<griddim, blockdim, 0, s>>>(dgcl, data, stride, ttl_ofs, ress, res_stride, res_ofs);
     return 0;
 }
 
 
+#ifdef _G4C_CL_TEST_
 static void
 _dump_state(State *s)
 {
@@ -1065,7 +1059,6 @@ _dump_ptn(g4c_pattern_t *ptn)
 	   ptn->dst_addr, 32-ptn->nr_src_netbits, ptn->src_port, ptn->dst_port);
 }
 
-#ifdef _G4C_CL_TEST_
 int main(int argc, char *argv[])
 {
     int np = 100;

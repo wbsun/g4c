@@ -16,7 +16,7 @@ extern "C" {
 #define get_eport(_p) ((int)((_p)&PORT_MASK))
 
 #ifndef PROTO_BITS
-#define PROTO_BITS 5
+#define PROTO_BITS 7
 #endif
 #define PROTO_STATE_SIZE (1<<PROTO_BITS)
 #define PROTO_MASK (((uint16_t)0xffff)>>(16-PROTO_BITS))
@@ -48,7 +48,7 @@ extern "C" {
         size_t memsz;
         int nrules;
         int res_sz;
-        uint32_t res_stride;
+        uint32_t res_stride; // unit in uint32_t, not bytes size, should be res_sz/sizeof(res_sz)
 
         int nr_saddr_sts;
         int *saddr_trs;

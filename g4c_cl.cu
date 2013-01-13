@@ -9,7 +9,7 @@
 #include <map>
 #include <set>
 
-#include "g4c.h"
+#include "g4c.hh"
 #include "g4c_cl.h"
 
 using namespace std;
@@ -701,6 +701,16 @@ g4c_cpu_classify_pkt(g4c_classifier_t *gcl, uint8_t *ttlptr)
     r[3] = cl_res(gcl->sp_ress, rid, gcl->res_stride);
     rid = gcl->dp_trs[ipa>>16];
     r[4] = cl_res(gcl->dp_ress, rid, gcl->res_stride);
+
+    for (int i=0; i<gcl->res_stride; i++) {
+	uint32_t v = r[0][i] & r[1][i];
+	if (v) {
+	    v &= r[2][i] & r[3][i] & r[4][i];
+	    if (v) {
+		return __builtin_ffs(v)-1 + i*32;
+	    }
+	}
+    }
     
     return -1;
 }
@@ -719,41 +729,41 @@ gpu_cl_0(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs
     if (threadIdx.y == 0)
     {
 	uint8_t pt = pkt[ttl_ofs + 1] & PROTO_MASK;
-	int rid = gcl->pt_trs[pt];
-	comp_ress[threadIdx.x] = cl_res(gcl->pt_ress, rid, gcl->res_stride);	
+	int rid = gcl->dev_pt_trs[pt];
+	comp_ress[threadIdx.x] = cl_res(gcl->dev_pt_ress, rid, gcl->res_stride);	
     }
     else if (threadIdx.y == 1)
     {
 	uint32_t sa = *(uint32_t*)(pkt+ttl_ofs+4);
 	int nid = 0;
 
-	nid = cl_ipa_trans(gcl->saddr_trs, 0, (sa)&0xff);
-	nid = cl_ipa_trans(gcl->saddr_trs, nid, (sa>>8)&0xff);
-	nid = cl_ipa_trans(gcl->saddr_trs, nid, (sa>>16)&0xff);
-	nid = cl_ipa_trans(gcl->saddr_trs, nid, (sa>>24)&0xff);
+	nid = cl_ipa_trans(gcl->dev_saddr_trs, 0, (sa)&0xff);
+	nid = cl_ipa_trans(gcl->dev_saddr_trs, nid, (sa>>8)&0xff);
+	nid = cl_ipa_trans(gcl->dev_saddr_trs, nid, (sa>>16)&0xff);
+	nid = cl_ipa_trans(gcl->dev_saddr_trs, nid, (sa>>24)&0xff);
 	
-	comp_ress[threadIdx.x + CL_PKTS_PER_BLK] = cl_res(gcl->saddr_ress, nid, gcl->res_stride);	
+	comp_ress[threadIdx.x + CL_PKTS_PER_BLK] = cl_res(gcl->dev_saddr_ress, nid, gcl->res_stride);	
     }
     else if (threadIdx.y == 2)
     {
 	uint32_t da = *(uint32_t*)(pkt+ttl_ofs+8);
 	int nid = 0;
 	
-	nid = cl_ipa_trans(gcl->daddr_trs, 0, (da)&0xff);
-	nid = cl_ipa_trans(gcl->daddr_trs, nid, (da>>8)&0xff);
-	nid = cl_ipa_trans(gcl->daddr_trs, nid, (da>>16)&0xff);
-	nid = cl_ipa_trans(gcl->daddr_trs, nid, (da>>24)&0xff);
+	nid = cl_ipa_trans(gcl->dev_daddr_trs, 0, (da)&0xff);
+	nid = cl_ipa_trans(gcl->dev_daddr_trs, nid, (da>>8)&0xff);
+	nid = cl_ipa_trans(gcl->dev_daddr_trs, nid, (da>>16)&0xff);
+	nid = cl_ipa_trans(gcl->dev_daddr_trs, nid, (da>>24)&0xff);
 	
-	comp_ress[threadIdx.x + (CL_PKTS_PER_BLK<<1)] = cl_res(gcl->daddr_ress, nid, gcl->res_stride);
+	comp_ress[threadIdx.x + (CL_PKTS_PER_BLK<<1)] = cl_res(gcl->dev_daddr_ress, nid, gcl->res_stride);
     }
     else if (threadIdx.y == 3)
     {
 	uint32_t p = (*(uint32_t*)(pkt+ttl_ofs+12));
 	
-	int rid = gcl->sp_trs[p & 0xffff];
-	comp_ress[threadIdx.x + (CL_PKTS_PER_BLK*3)] = cl_res(gcl->sp_ress, rid, gcl->res_stride);
-	rid = gcl->dp_trs[p>>16];
-	comp_ress[threadIdx.x + (CL_PKTS_PER_BLK<<2)] = cl_res(gcl->dp_ress, rid, gcl->res_stride);
+	int rid = gcl->dev_sp_trs[p & 0xffff];
+	comp_ress[threadIdx.x + (CL_PKTS_PER_BLK*3)] = cl_res(gcl->dev_sp_ress, rid, gcl->res_stride);
+	rid = gcl->dev_dp_trs[p>>16];
+	comp_ress[threadIdx.x + (CL_PKTS_PER_BLK<<2)] = cl_res(gcl->dev_dp_ress, rid, gcl->res_stride);
     }
 
     __syncthreads();
@@ -767,7 +777,7 @@ gpu_cl_0(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs
 	r[4] = comp_ress[threadIdx.x + CL_PKTS_PER_BLK<<2];
 
 	#pragma unroll
-	for (int i=0; i<res_stride; i++) {
+	for (int i=0; i<gcl->res_stride; i++) {
 	    uint32_t v = r[0][i] & r[1][i] & r[2][i] & r[3][i] & r[4][i];;
 	    if (v) {
 		*(ress + pktid*res_stride + res_ofs) = __ffs(v)-1 + i*32;
@@ -1045,7 +1055,7 @@ _dump_ptn(g4c_pattern_t *ptn)
 	   ptn->dst_addr, 32-ptn->nr_src_netbits, ptn->src_port, ptn->dst_port);
 }
 
-#ifdef G4C_CL_TEST
+#ifdef _G4C_CL_TEST_
 int main(int argc, char *argv[])
 {
     int np = 100;

@@ -119,11 +119,11 @@ _fill_states(
 {
     for (int i=0; i<ss.size(); i++) {
 	State* s = ss[i];
-	assert(s->go.size() == 0 || s->go.size() = state_size);
+	assert(s->go.size() == 0 || s->go.size() == state_size);
 	
 	int *trans = cl_trans_tbl(trans_bp, s->id, state_size);
 	for (int v=0; v<state_size; v++)
-	    trans[v] = s->go[v];
+	    trans[v] = s->go[v]->id;
 
 	_fill_res_bitmap(cl_res(ress_bp, s->id, rstride), &s->outputs);
     }
@@ -173,28 +173,28 @@ _g4c_cvt_cl(Classifier *cl, int with_dev, int stream)
     gcl->nr_dp_sts = cl->dpss.size();
     gcl->nr_pt_sts = cl->pss.size();
 
-    gcl->saddr_trs = g4c_ptr_add(gcl->mem, G4C_PAGE_SIZE);
-    gcl->saddr_ress = g4c_ptr_add(gcl->saddr_trs,
+    gcl->saddr_trs = (int*)g4c_ptr_add(gcl->mem, G4C_PAGE_SIZE);
+    gcl->saddr_ress = (uint32_t*)g4c_ptr_add(gcl->saddr_trs,
 				  g4c_round_up(cl->sass.size()*G4C_IPA_STATE_SIZE*sizeof(g4c_cl_sid_t),
 					       G4C_PAGE_SIZE));
 
-    gcl->daddr_trs = g4c_ptr_add(gcl->saddr_trs, sa_sz);
-    gcl->daddr_ress = g4c_ptr_add(gcl->daddr_trs,
+    gcl->daddr_trs = (int*)g4c_ptr_add(gcl->saddr_trs, sa_sz);
+    gcl->daddr_ress = (uint32_t*)g4c_ptr_add(gcl->daddr_trs,
 				  g4c_round_up(cl->dass.size()*G4C_IPA_STATE_SIZE*sizeof(g4c_cl_sid_t),
 					       G4C_PAGE_SIZE));
 
-    gcl->sp_trs = g4c_ptr_add(gcl->daddr_trs, da_sz);
-    gcl->sp_ress = g4c_ptr_add(gcl->sp_trs,
+    gcl->sp_trs = (int*)g4c_ptr_add(gcl->daddr_trs, da_sz);
+    gcl->sp_ress = (uint32_t*)g4c_ptr_add(gcl->sp_trs,
 			       g4c_round_up(cl->spss.size()*PORT_STATE_SIZE*sizeof(g4c_cl_sid_t),
 					    G4C_PAGE_SIZE));
 
-    gcl->dp_trs = g4c_ptr_add(gcl->sp_trs, sp_sz);
-    gcl->dp_ress = g4c_ptr_add(gcl->dp_trs,
+    gcl->dp_trs = (int*)g4c_ptr_add(gcl->sp_trs, sp_sz);
+    gcl->dp_ress = (uint32_t*)g4c_ptr_add(gcl->dp_trs,
 			       g4c_round_up(cl->dpss.size()*PORT_STATE_SIZE*sizeof(g4c_cl_sid_t),
 					    G4C_PAGE_SIZE));
 
-    gcl->pt_trs = g4c_ptr_add(gcl->dp_trs, dp_sz);
-    gcl->pt_ress = g4c_ptr_add(gcl->pt_trs,
+    gcl->pt_trs = (int*)g4c_ptr_add(gcl->dp_trs, dp_sz);
+    gcl->pt_ress = (uint32_t*)g4c_ptr_add(gcl->pt_trs,
 			       g4c_round_up(cl->pss.size()*PROTO_STATE_SIZE*sizeof(g4c_cl_sid_t),
 					    G4C_PAGE_SIZE));
     
@@ -204,21 +204,21 @@ _g4c_cvt_cl(Classifier *cl, int with_dev, int stream)
     _fill_states(cl->spss, gcl->sp_trs, PORT_STATE_SIZE, gcl->sp_ress, gcl->res_stride);
     _fill_states(cl->dpss, gcl->dp_trs, PORT_STATE_SIZE, gcl->dp_ress, gcl->res_stride);
 
-    _fill_states(cl->ptss, gcl->pt_trs, PROTO_STATE_SIZE, gcl->pt_ress, gcl->res_stride);
+    _fill_states(cl->pss, gcl->pt_trs, PROTO_STATE_SIZE, gcl->pt_ress, gcl->res_stride);
 
     if (with_dev) {
 	gcl->devmem = dgcl;
-	gcl->dev_saddr_trs = g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->saddr_trs, gcl->mem));
-	gcl->dev_daddr_trs = g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->daddr_trs, gcl->mem));
-	gcl->dev_sp_trs = g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->sp_trs, gcl->mem));
-	gcl->dev_dp_trs = g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->dp_trs, gcl->mem));
-	gcl->dev_pt_trs = g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->pt_trs, gcl->mem));
+	gcl->dev_saddr_trs = (int*)g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->saddr_trs, gcl->mem));
+	gcl->dev_daddr_trs = (int*)g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->daddr_trs, gcl->mem));
+	gcl->dev_sp_trs = (int*)g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->sp_trs, gcl->mem));
+	gcl->dev_dp_trs = (int*)g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->dp_trs, gcl->mem));
+	gcl->dev_pt_trs = (int*)g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->pt_trs, gcl->mem));
 
-	gcl->dev_saddr_ress = g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->saddr_ress, gcl->mem));
-	gcl->dev_daddr_ress = g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->daddr_ress, gcl->mem));
-	gcl->dev_sp_ress = g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->sp_ress, gcl->mem));
-	gcl->dev_dp_ress = g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->dp_ress, gcl->mem));
-	gcl->dev_pt_ress = g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->pt_ress, gcl->mem));
+	gcl->dev_saddr_ress = (uint32_t*)g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->saddr_ress, gcl->mem));
+	gcl->dev_daddr_ress = (uint32_t*)g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->daddr_ress, gcl->mem));
+	gcl->dev_sp_ress = (uint32_t*)g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->sp_ress, gcl->mem));
+	gcl->dev_dp_ress = (uint32_t*)g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->dp_ress, gcl->mem));
+	gcl->dev_pt_ress = (uint32_t*)g4c_ptr_add(gcl->devmem, g4c_ptr_offset(gcl->pt_ress, gcl->mem));
 
 	g4c_h2d_async(gcl->mem, gcl->devmem, gcl->memsz, stream);
 	g4c_stream_sync(stream);
@@ -246,7 +246,6 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 
 	for (int i=0; i<n; i++) {
 	    g4c_pattern_t *ptn = ptns+i;
-	    int nsid = 0;
 
 	    s = sass[0];
 	    for (int b=0; b<4; b++) {
@@ -365,7 +364,6 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 
 	for (int i=0; i<n; i++) {
 	    g4c_pattern_t *ptn = ptns+i;
-	    int nsid = 0;
 
 	    s = dass[0];
 	    for (int b=0; b<4; b++) {
@@ -675,27 +673,27 @@ extern "C" int
 g4c_cpu_classify_pkt(g4c_classifier_t *gcl, uint8_t *ttlptr)
 {
     uint32_t *r[5];
-    uint8_t pt = ttlptr[1] & PROTO_MASK;
+    uint8_t pt = ttlptr[0] & PROTO_MASK;
     int rid = gcl->pt_trs[pt];
     r[0] = cl_res(gcl->pt_ress, rid, gcl->res_stride);
 
     
-    uint32_t ipa = *(uint32_t*)(ttlptr+ttl_ofs+4);    
-    rid = cl_ipa_trans(gcl->saddr_trs, 0, (ipa)&0xff);
-    rid = cl_ipa_trans(gcl->saddr_trs, rid, (ipa>>8)&0xff);
-    rid = cl_ipa_trans(gcl->saddr_trs, rid, (ipa>>16)&0xff);
-    rid = cl_ipa_trans(gcl->saddr_trs, rid, (ipa>>24)&0xff);	
+    uint32_t ipa = *(uint32_t*)(ttlptr+3);    
+    rid = *cl_ipa_trans(gcl->saddr_trs, 0, (ipa)&0xff);
+    rid = *cl_ipa_trans(gcl->saddr_trs, rid, (ipa>>8)&0xff);
+    rid = *cl_ipa_trans(gcl->saddr_trs, rid, (ipa>>16)&0xff);
+    rid = *cl_ipa_trans(gcl->saddr_trs, rid, (ipa>>24)&0xff);	
     r[1] = cl_res(gcl->saddr_ress, rid, gcl->res_stride);
 
     
-    ipa = *(uint32_t*)(ttlptr+ttl_ofs+8);    
-    rid = cl_ipa_trans(gcl->daddr_trs, 0, (ipa)&0xff);
-    rid = cl_ipa_trans(gcl->daddr_trs, rid, (ipa>>8)&0xff);
-    rid = cl_ipa_trans(gcl->daddr_trs, rid, (ipa>>16)&0xff);
-    rid = cl_ipa_trans(gcl->daddr_trs, rid, (ipa>>24)&0xff);	
+    ipa = *(uint32_t*)(ttlptr+7);    
+    rid = *cl_ipa_trans(gcl->daddr_trs, 0, (ipa)&0xff);
+    rid = *cl_ipa_trans(gcl->daddr_trs, rid, (ipa>>8)&0xff);
+    rid = *cl_ipa_trans(gcl->daddr_trs, rid, (ipa>>16)&0xff);
+    rid = *cl_ipa_trans(gcl->daddr_trs, rid, (ipa>>24)&0xff);	
     r[2] = cl_res(gcl->daddr_ress, rid, gcl->res_stride);
 
-    ipa = (*(uint32_t*)(ttlptr+ttl_ofs+12));
+    ipa = (*(uint32_t*)(ttlptr+11));
 	
     rid = gcl->sp_trs[ipa & 0xffff];
     r[3] = cl_res(gcl->sp_ress, rid, gcl->res_stride);
@@ -737,10 +735,10 @@ gpu_cl_0(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs
 	uint32_t sa = *(uint32_t*)(pkt+ttl_ofs+4);
 	int nid = 0;
 
-	nid = cl_ipa_trans(gcl->dev_saddr_trs, 0, (sa)&0xff);
-	nid = cl_ipa_trans(gcl->dev_saddr_trs, nid, (sa>>8)&0xff);
-	nid = cl_ipa_trans(gcl->dev_saddr_trs, nid, (sa>>16)&0xff);
-	nid = cl_ipa_trans(gcl->dev_saddr_trs, nid, (sa>>24)&0xff);
+	nid = *cl_ipa_trans(gcl->dev_saddr_trs, 0, (sa)&0xff);
+	nid = *cl_ipa_trans(gcl->dev_saddr_trs, nid, (sa>>8)&0xff);
+	nid = *cl_ipa_trans(gcl->dev_saddr_trs, nid, (sa>>16)&0xff);
+	nid = *cl_ipa_trans(gcl->dev_saddr_trs, nid, (sa>>24)&0xff);
 	
 	comp_ress[threadIdx.x + CL_PKTS_PER_BLK] = cl_res(gcl->dev_saddr_ress, nid, gcl->res_stride);	
     }
@@ -749,10 +747,10 @@ gpu_cl_0(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs
 	uint32_t da = *(uint32_t*)(pkt+ttl_ofs+8);
 	int nid = 0;
 	
-	nid = cl_ipa_trans(gcl->dev_daddr_trs, 0, (da)&0xff);
-	nid = cl_ipa_trans(gcl->dev_daddr_trs, nid, (da>>8)&0xff);
-	nid = cl_ipa_trans(gcl->dev_daddr_trs, nid, (da>>16)&0xff);
-	nid = cl_ipa_trans(gcl->dev_daddr_trs, nid, (da>>24)&0xff);
+	nid = *cl_ipa_trans(gcl->dev_daddr_trs, 0, (da)&0xff);
+	nid = *cl_ipa_trans(gcl->dev_daddr_trs, nid, (da>>8)&0xff);
+	nid = *cl_ipa_trans(gcl->dev_daddr_trs, nid, (da>>16)&0xff);
+	nid = *cl_ipa_trans(gcl->dev_daddr_trs, nid, (da>>24)&0xff);
 	
 	comp_ress[threadIdx.x + (CL_PKTS_PER_BLK<<1)] = cl_res(gcl->dev_daddr_ress, nid, gcl->res_stride);
     }
@@ -801,7 +799,7 @@ g4c_gpu_classify_pkts(g4c_classifier_t *dgcl, int npkts,
     dim3 griddim(ng, 1);
     cudaStream_t s = g4c_get_stream(stream);
 
-    g4c_cl_0<<<griddim, blockdim, 0, s>>>(dgcl, npkts, data, stride, ttl_ofs, ress, res_stride, res_ofs);
+    gpu_cl_0<<<griddim, blockdim, 0, s>>>(dgcl, data, stride, ttl_ofs, ress, res_stride, res_ofs);
     return 0;
 }
 

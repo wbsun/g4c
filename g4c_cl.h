@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#define G4C_CL_VERBOSE 'v'
+
 #define G4C_IPA_STATE_SIZE 256
 #define G4C_IPA_STATE_BITS 8
 
@@ -22,7 +24,7 @@ extern "C" {
 #define PROTO_MASK (((uint16_t)0xffff)>>(16-PROTO_BITS))
 #define get_eproto(_p) ((int)((_p)&PROTO_MASK))
 
-    typedef g4c_cl_sid_t int;
+    typedef int g4c_cl_sid_t;
 
     // All fields in network order
     typedef struct _g4c_pattern_t {
@@ -52,7 +54,7 @@ extern "C" {
 
         int nr_saddr_sts;
         int *saddr_trs;
-        uitn32_t *saddr_ress;
+        uint32_t *saddr_ress;
 
         int nr_daddr_sts;
         int *daddr_trs;

@@ -3,8 +3,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
-#include "g4c.h"
-#include "g4c_cl.h"
+#include "../g4c.h"
+#include "../g4c_cl.h"
 #include "utils.h"
 
 #define PKT_LEN 16
@@ -66,11 +66,11 @@ gpu_bench(g4c_classifier_t *hgcl, g4c_classifier_t *dgcl,
     printf("GPU Bench, warm up: \n");
 
     timingval tv = timing_start();    
-    g4c_h2d_async(hppkts[ns-1], dppkts[ns-1], npkts*PKT_LEN, stream[ns-1]);
+    g4c_h2d_async(hppkts[ns-1], dppkts[ns-1], npkts*PKT_LEN, streams[ns-1]);
     g4c_gpu_classify_pkts(dgcl, npkts, dppkts[ns-1], PKT_LEN, 1, 12, dpress[ns-1],
-			  res_stride, res_ofs, stream[ns-1]);
-    g4c_d2h_async(dpress[ns-1], hpress[ns-1], npkts*res_stride, stream[ns-1]);
-    g4c_stream_sync(stream[ns-1]);
+			  res_stride, res_ofs, streams[ns-1]);
+    g4c_d2h_async(dpress[ns-1], hpress[ns-1], npkts*res_stride, streams[ns-1]);
+    g4c_stream_sync(streams[ns-1]);
     int64_t us = timing_stop(&tv);
     
     printf("Done warm up, time %12ld us, rate %8.6lf Mops/s\n\n",
@@ -78,10 +78,10 @@ gpu_bench(g4c_classifier_t *hgcl, g4c_classifier_t *dgcl,
 
     tv = timing_start();    
     for (int i=0; i<ns; i++) {
-	g4c_h2d_async(hppkts[i], dppkts[i], npkts*PKT_LEN, stream[i]);
+	g4c_h2d_async(hppkts[i], dppkts[i], npkts*PKT_LEN, streams[i]);
 	g4c_gpu_classify_pkts(dgcl, npkts, dppkts[i], PKT_LEN, 1, 12, dpress[i],
-			      res_stride, res_ofs, stream[i]);
-	g4c_d2h_async(dpress[i], hpress[i], npkts*res_stride, stream[i]);
+			      res_stride, res_ofs, streams[i]);
+	g4c_d2h_async(dpress[i], hpress[i], npkts*res_stride, streams[i]);
     }
     us = timing_stop(&tv);
 
@@ -117,12 +117,13 @@ int main(int argc, char *argv[])
     npkts = (1<<20);
     nstream = 4;
 
+    char snpkts[32];
+    int unit = 1;
+
     switch(argc) {    
     case 4:
 	nstream = atoi(argv[3]);
-    case 3:
-	char snpkts[32];
-	int unit = 1;
+    case 3:	
 	strcpy(snpkts, argv[2]);
 	switch(snpkts[strlen(snpkts)-1]) {
 	case 'M':
@@ -167,12 +168,12 @@ int main(int argc, char *argv[])
     eval_init();
 
     for (int i=0; i<nstream; i++) {
-	hppkts[i] = g4c_alloc_page_lock_mem(npkts*PKT_LEN);
-	dppkts[i] = g4c_alloc_dev_mem(npkts*PKT_LEN);
-	hpress[i] = g4c_alloc_page_lock_mem(npkts*sizeof(int)*res_stride);
-	dpress[i] = g4c_alloc_dev_mem(npkts*sizeof(int)*res_stride);
-	stream[i] = g4c_alloc_stream();
-	assert(hppkts[i] && dppkts[i] && hpress[i] && dpress[i] && stream[i]);
+	hppkts[i] = (uint8_t*)g4c_alloc_page_lock_mem(npkts*PKT_LEN);
+	dppkts[i] = (uint8_t*)g4c_alloc_dev_mem(npkts*PKT_LEN);
+	hpress[i] = (int*)g4c_alloc_page_lock_mem(npkts*sizeof(int)*res_stride);
+	dpress[i] = (int*)g4c_alloc_dev_mem(npkts*sizeof(int)*res_stride);
+	streams[i] = g4c_alloc_stream();
+	assert(hppkts[i] && dppkts[i] && hpress[i] && dpress[i] && streams[i]);
 
 	printf("Generating %d-th packets batch... ", i);
 	gen_rand_pkts(hppkts[i], npkts);
@@ -180,7 +181,7 @@ int main(int argc, char *argv[])
     }
 
     printf("Build classifier... ");
-    gcl = g4c_create_classifier(ptns, nptns, 1, stream[0]);
+    gcl = g4c_create_classifier(ptns, nptns, 1, streams[0]);
     if (gcl)
 	printf(" Done.\n");
     else {

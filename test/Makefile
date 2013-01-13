@@ -13,7 +13,7 @@ EACOBJS=$(addsuffix -eval.o, $(basename $(notdir $(EACSRCS))))
 ECLSRCS = $(COMMSRCS) ../g4c_cl.cu evalcl.cc
 ECLOBJS = $(addsuffix -eval.o, $(basename $(notdir $(ECLSRCS))))
 
-CLDEPS = ../g4c_cl.cu g4c_cl.h g4c.h g4c.hh
+CLDEPS = ../g4c_cl.cu ../g4c_cl.h ../g4c.h ../g4c.hh
 ECLDEPS = evalcl.cc ../g4c.h ../g4c_cl.h utils.h
 
 G4CDEPS=../g4c.cu ../g4c.hh ../g4c.h

@@ -2,8 +2,8 @@
 
 CXX=g++
 NVCC=nvcc
-CXXFLAGS=-O2
-NVCCFLAGS=-arch=sm_20 -O2
+CXXFLAGS=-g
+NVCCFLAGS=-arch=sm_20 -g
 
 COMMSRCS=../g4c_mm.cc ../g4c.cu
 
@@ -70,3 +70,4 @@ clean:
 	rm -rf *.o
 	rm -rf eac
 	rm -rf elu
+	rm -rf ecl

@@ -58,16 +58,6 @@ public:
     }
 
     ~Classifier() {
-	if (sa_ly)
-	    delete sa_ly;
-	if (da_ly)
-	    delete da_ly;
-	if (sp_ly)
-	    delete sp_ly;
-	if (dp_ly)
-	    delete dp_ly;
-	if (p_ly)
-	    delete p_ly;
 	sass.clear();
 	dass.clear();
 	spss.clear();
@@ -120,10 +110,19 @@ _fill_states(
     for (int i=0; i<ss.size(); i++) {
 	State* s = ss[i];
 	assert(s->go.size() == 0 || s->go.size() == state_size);
-	
-	int *trans = cl_trans_tbl(trans_bp, s->id, state_size);
-	for (int v=0; v<state_size; v++)
-	    trans[v] = s->go[v]->id;
+
+	if (verbose_level) {
+	    if (s->go.size() != 0 && s->go.size() != state_size) {
+		printf("Error: state %d size %lu, level %d, fail %d\n",
+		       s->id, s->go.size(), s->level, s->fail);
+	    }
+	}
+
+	if (s->go.size()) {
+	    int *trans = cl_trans_tbl(trans_bp, s->id, state_size);
+	    for (int v=0; v<state_size; v++)
+		trans[v] = s->go[v]->id;
+	}
 
 	_fill_res_bitmap(cl_res(ress_bp, s->id, rstride), &s->outputs);
     }
@@ -235,7 +234,7 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
     vector<State*> &states = cl->states;
 
     cl->nr_rules = n;
-    states.reserve(n<<2);
+//    states.reserve(n<<2);
 
     do { // Build Src addr trie
 	State *s = new State(sid++, 0);
@@ -278,18 +277,21 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 		s->outputs.insert(ptn->idx);
 	}
 
-	State *ipa_0_out_fs = new State[4]; // shared fail nodes with 0 outputs
+	State **ipa_0_out_fs = new State*[4]; // shared fail nodes with 0 outputs
+	for (int l=0; l<4; l++)
+	    ipa_0_out_fs[l] = new State();
+	
 	for (int l=0; l<4; l++) {
-	    ipa_0_out_fs[l].id = sid++;
-	    ipa_0_out_fs[l].fail = true;
-	    ipa_0_out_fs[l].level = l+1;
-	    states.push_back(ipa_0_out_fs+l);
-	    sass.push_back(ipa_0_out_fs+l);
+	    ipa_0_out_fs[l]->id = sid++;
+	    ipa_0_out_fs[l]->fail = true;
+	    ipa_0_out_fs[l]->level = l+1;
+	    states.push_back(ipa_0_out_fs[l]);
+	    sass.push_back(ipa_0_out_fs[l]);
 
 	    if (l != 3)
 		for (int v=0; v<G4C_IPA_STATE_SIZE; v++) {
-		    ipa_0_out_fs[l].go.insert(
-			pair<goto_key_t, State*>(v, ipa_0_out_fs+l+1));
+		    ipa_0_out_fs[l]->go.insert(
+			pair<goto_key_t, State*>(v, ipa_0_out_fs[l+1]));
 		}
 	}
 
@@ -319,7 +321,7 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 		    State *fs;
 
 		    if (curs->outputs.size() == 0) {
-			fs = ipa_0_out_fs+l;
+			fs = ipa_0_out_fs[l];
 		    } else if (!curs->fail) {			
 			fs = new State(sid++, l+1);
 			states.push_back(fs);
@@ -346,12 +348,14 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 	}
 
 	if (verbose_level > 0) {
-	    printf("INFO:: G4C Classifier: build_goto: has %lu src finals, %lu src nodes\n",
-		   layer->size(), sass.size());
+	    printf("INFO:: G4C Classifier: build_goto: has %lu src finals, %lu src nodes, %d\n",
+		   layer->size(), sass.size(), sid);
 	}
 
-	cl->sa_ly = layer;
-	delete next_layer;    
+	layer->clear();
+	delete layer;
+	delete next_layer;
+	delete[] ipa_0_out_fs;
     } while (0);
 
     do { // Build Dst addr trie
@@ -396,21 +400,24 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 		s->outputs.insert(ptn->idx);
 	}
 
-	State *ipa_0_out_fs = new State[4]; // shared fail nodes with 0 outputs
+	State **ipa_0_out_fs = new State*[4]; // shared fail nodes with 0 outputs
+	for (int l=0; l<4; l++)
+	    ipa_0_out_fs[l] = new State();
+	
 	for (int l=0; l<4; l++) {
-	    ipa_0_out_fs[l].id = sid++;
-	    ipa_0_out_fs[l].fail = true;
-	    ipa_0_out_fs[l].level = l+1;
-	    states.push_back(ipa_0_out_fs+l);
-	    dass.push_back(ipa_0_out_fs+l);
+	    ipa_0_out_fs[l]->id = sid++;
+	    ipa_0_out_fs[l]->fail = true;
+	    ipa_0_out_fs[l]->level = l+1;
+	    states.push_back(ipa_0_out_fs[l]);
+	    dass.push_back(ipa_0_out_fs[l]);
 
 	    if (l != 3)
 		for (int v=0; v<G4C_IPA_STATE_SIZE; v++) {
-		    ipa_0_out_fs[l].go.insert(
-			pair<goto_key_t, State*>(v, ipa_0_out_fs+l+1));
+		    ipa_0_out_fs[l]->go.insert(
+			pair<goto_key_t, State*>(v, ipa_0_out_fs[l+1]));
 		}
 	}
-
+	
 	s = dass[0];
 	set<State*> *layer = new set<State*>(), *next_layer = new set<State*>(), *tmplp;
 	assert(layer && next_layer);
@@ -437,7 +444,7 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 		    State *fs;
 
 		    if (curs->outputs.size() == 0) {
-			fs = ipa_0_out_fs+l;
+			fs = ipa_0_out_fs[l];
 		    } else if (!curs->fail) {
 			fs = new State(sid++, l+1);
 			states.push_back(fs);
@@ -464,12 +471,14 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 	}
 
 	if (verbose_level > 0) {
-	    printf("INFO:: G4C Classifier: build_goto: has %lu dst finals, %lu dst nodes\n",
-		   layer->size(), dass.size());
+	    printf("INFO:: G4C Classifier: build_goto: has %lu dst finals, %lu dst nodes, %d\n",
+		   layer->size(), dass.size(), sid);
 	}
 
-	cl->da_ly = layer;
-	delete next_layer;    
+	layer->clear();
+	delete layer;
+	delete next_layer;
+	delete[] ipa_0_out_fs;
     } while (0);
 
     do { // Build for src port
@@ -500,15 +509,11 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 	    }
 	}
 
-	set<State*> *next_layer = new set<State*>();
-	assert(next_layer);
-
 	map<goto_key_t, State*>::iterator goite = s->go.begin();
 	while (goite != s->go.end()) {
 	    State *ns = goite->second;
 	    ns->outputs.insert(s->outputs.begin(), s->outputs.end());
 	    ++goite;
-	    next_layer->insert(ns);
 	}
 
 	if (s->go.size() <= PORT_MASK) {
@@ -521,15 +526,13 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 	    for (goto_key_t v=0; v<=PORT_MASK; v++)
 		if (s->go.find(v) == s->go.end())
 		    s->go.insert(make_pair(v, fs));
-	    next_layer->insert(fs);
 	}
 
 	if (verbose_level > 0) {
-	    printf("INFO:: G4C Classifier: build_goto: has %lu src port finals, %lu src port nodes\n",
-		   next_layer->size(), spss.size());
+	    printf("INFO:: G4C Classifier: build_goto: has %lu src port nodes %d\n",
+		   spss.size(), sid);
 	}
-
-	cl->sp_ly = next_layer;	
+	
     } while (0);
 
 
@@ -562,15 +565,11 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 	    }
 	}
 
-	set<State*> *next_layer = new set<State*>();
-	assert(next_layer);
-
 	map<goto_key_t, State*>::iterator goite = s->go.begin();
 	while (goite != s->go.end()) {
 	    State *ns = goite->second;
 	    ns->outputs.insert(s->outputs.begin(), s->outputs.end());
 	    ++goite;
-	    next_layer->insert(ns);
 	}
 
 	if (s->go.size() <= PORT_MASK) {
@@ -583,15 +582,13 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 	    for (goto_key_t v=0; v<=PORT_MASK; v++)
 		if (s->go.find(v) == s->go.end())
 		    s->go.insert(make_pair(v, fs));
-	    next_layer->insert(fs);
 	}
 
 	if (verbose_level > 0) {
-	    printf("INFO:: G4C Classifier: build_goto: has %lu dst port finals, %lu dst port nodes\n",
-		   next_layer->size(), dpss.size());
+	    printf("INFO:: G4C Classifier: build_goto: has %lu dst port nodes %d\n",
+		   dpss.size(), sid);
 	}
 
-	cl->dp_ly = next_layer;	
     } while (0);
 
 
@@ -624,15 +621,11 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 	    }
 	}
 
-	set<State*> *next_layer = new set<State*>();
-	assert(next_layer);
-
 	map<goto_key_t, State*>::iterator goite = s->go.begin();
 	while (goite != s->go.end()) {
 	    State *ns = goite->second;
 	    ns->outputs.insert(s->outputs.begin(), s->outputs.end());
 	    ++goite;
-	    next_layer->insert(ns);
 	}
 
 	if (s->go.size() <= PROTO_MASK) {
@@ -645,15 +638,13 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 	    for (goto_key_t v=0; v<=PROTO_MASK; v++)
 		if (s->go.find(v) == s->go.end())
 		    s->go.insert(make_pair(v, fs));
-	    next_layer->insert(fs);
 	}
 
 	if (verbose_level > 0) {
-	    printf("INFO:: G4C Classifier: build_goto: has %lu proto finals, %lu proto nodes\n",
-		   next_layer->size(), pss.size());
+	    printf("INFO:: G4C Classifier: build_goto: has %lu proto nodes %d\n",
+		   pss.size(), sid);
 	}
 
-	cl->p_ly = next_layer;	
     } while (0);
 
     return states.size();
@@ -662,10 +653,11 @@ _g4c_cl_build(g4c_pattern_t *ptns, int n, Classifier *cl)
 extern "C" g4c_classifier_t *
 g4c_create_classifier(g4c_pattern_t *ptn, int nptn, int create_dev, int stream)
 {
-    Classifier cl;
-    _g4c_cl_build(ptn, nptn, &cl);
+    Classifier *cl = new Classifier();
+    _g4c_cl_build(ptn, nptn, cl);
 
-    g4c_classifier_t *gcl = _g4c_cvt_cl(&cl, create_dev, stream);
+    g4c_classifier_t *gcl = _g4c_cvt_cl(cl, create_dev, stream);
+    delete cl;
     return gcl;
 }
 
@@ -717,6 +709,23 @@ g4c_cpu_classify_pkt(g4c_classifier_t *gcl, uint8_t *ttlptr)
 #define CL_BLK_SIZE (CL_PKTS_PER_BLK*4)
 
 __global__ void
+gpu_cl_1(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs,
+	 int *ress, uint32_t res_stride, uint32_t res_ofs)
+{
+    __shared__ uint32_t* comp_ress[CL_BLK_SIZE];
+    int pktid = threadIdx.x + blockIdx.x*blockDim.x;
+    uint8_t *pkt = data + stride*pktid;
+
+    comp_ress[threadIdx.x + threadIdx.y*blockDim.x] = *(uint32_t**)pkt;
+
+    __syncthreads();
+
+    if (threadIdx.y==0) {
+	*(ress + pktid*res_stride + res_ofs) = -1;
+    }    
+}
+
+__global__ void
 gpu_cl_0(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs,
 	 int *ress, uint32_t res_stride, uint32_t res_ofs)
 {
@@ -732,41 +741,41 @@ gpu_cl_0(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs
     }
     else if (threadIdx.y == 1)
     {
-	uint32_t sa = *(uint32_t*)(pkt+ttl_ofs+4);
+	uint32_t sa = *(uint32_t*)(pkt+ttl_ofs+3);
 	int nid = 0;
 
-	nid = *cl_ipa_trans(gcl->dev_saddr_trs, 0, (sa)&0xff);
-	nid = *cl_ipa_trans(gcl->dev_saddr_trs, nid, (sa>>8)&0xff);
-	nid = *cl_ipa_trans(gcl->dev_saddr_trs, nid, (sa>>16)&0xff);
-	nid = *cl_ipa_trans(gcl->dev_saddr_trs, nid, (sa>>24)&0xff);
+	nid = *cl_ipa_trans(gcl->dev_saddr_trs, 0, ((sa)&0xff));
+	nid = *cl_ipa_trans(gcl->dev_saddr_trs, nid, ((sa>>8)&0xff));
+	nid = *cl_ipa_trans(gcl->dev_saddr_trs, nid, ((sa>>16)&0xff));
+	nid = *cl_ipa_trans(gcl->dev_saddr_trs, nid, ((sa>>24)&0xff));
 	
 	comp_ress[threadIdx.x + CL_PKTS_PER_BLK] = cl_res(gcl->dev_saddr_ress, nid, gcl->res_stride);	
     }
     else if (threadIdx.y == 2)
     {
-	uint32_t da = *(uint32_t*)(pkt+ttl_ofs+8);
+	uint32_t da = *(uint32_t*)(pkt+ttl_ofs+7);
 	int nid = 0;
 	
-	nid = *cl_ipa_trans(gcl->dev_daddr_trs, 0, (da)&0xff);
-	nid = *cl_ipa_trans(gcl->dev_daddr_trs, nid, (da>>8)&0xff);
-	nid = *cl_ipa_trans(gcl->dev_daddr_trs, nid, (da>>16)&0xff);
-	nid = *cl_ipa_trans(gcl->dev_daddr_trs, nid, (da>>24)&0xff);
+	nid = *cl_ipa_trans(gcl->dev_daddr_trs, 0, ((da)&0xff));
+	nid = *cl_ipa_trans(gcl->dev_daddr_trs, nid, ((da>>8)&0xff));
+	nid = *cl_ipa_trans(gcl->dev_daddr_trs, nid, ((da>>16)&0xff));
+	nid = *cl_ipa_trans(gcl->dev_daddr_trs, nid, ((da>>24)&0xff));
 	
 	comp_ress[threadIdx.x + (CL_PKTS_PER_BLK<<1)] = cl_res(gcl->dev_daddr_ress, nid, gcl->res_stride);
     }
     else if (threadIdx.y == 3)
     {
-	uint32_t p = (*(uint32_t*)(pkt+ttl_ofs+12));
+	uint32_t p = (*(uint32_t*)(pkt+ttl_ofs+11));
 	
-	int rid = gcl->dev_sp_trs[p & 0xffff];
+	int rid = gcl->dev_sp_trs[(p & PORT_MASK)];
 	comp_ress[threadIdx.x + (CL_PKTS_PER_BLK*3)] = cl_res(gcl->dev_sp_ress, rid, gcl->res_stride);
-	rid = gcl->dev_dp_trs[p>>16];
-	comp_ress[threadIdx.x + (CL_PKTS_PER_BLK<<2)] = cl_res(gcl->dev_dp_ress, rid, gcl->res_stride);
+	// rid = gcl->dev_dp_trs[((p>>16) & PORT_MASK)];
+	// comp_ress[threadIdx.x + (CL_PKTS_PER_BLK<<2)] = cl_res(gcl->dev_dp_ress, rid, gcl->res_stride);
     }
 
     __syncthreads();
 
-    if (threadIdx.y==0) {
+    if (threadIdx.y==5) {
 	uint32_t *r[5];
 	r[0] = comp_ress[threadIdx.x];
 	r[1] = comp_ress[threadIdx.x + CL_PKTS_PER_BLK];
@@ -774,7 +783,7 @@ gpu_cl_0(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs
 	r[3] = comp_ress[threadIdx.x + CL_PKTS_PER_BLK*3];
 	r[4] = comp_ress[threadIdx.x + CL_PKTS_PER_BLK<<2];
 
-	#pragma unroll
+	// #pragma unroll
 	for (int i=0; i<gcl->res_stride; i++) {
 	    uint32_t v = r[0][i] & r[1][i] & r[2][i] & r[3][i] & r[4][i];;
 	    if (v) {
@@ -798,6 +807,9 @@ g4c_gpu_classify_pkts(g4c_classifier_t *dgcl, int npkts,
     ng /= CL_PKTS_PER_BLK;
     dim3 griddim(ng, 1);
     cudaStream_t s = g4c_get_stream(stream);
+
+    if (verbose_level)
+	printf("GPU CL kernel: npkts %d, %d X %d grid, %d X %d block\n", npkts, ng, 1, CL_PKTS_PER_BLK, 4);
 
     gpu_cl_0<<<griddim, blockdim, 0, s>>>(dgcl, data, stride, ttl_ofs, ress, res_stride, res_ofs);
     return 0;

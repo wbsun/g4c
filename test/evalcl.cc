@@ -9,6 +9,8 @@
 
 #define PKT_LEN 16
 
+int g_debug = 1;
+
 #include <sys/time.h>
 static void
 gen_rand_ptns(g4c_pattern_t *ptns, int n)
@@ -67,9 +69,20 @@ gpu_bench(g4c_classifier_t *hgcl, g4c_classifier_t *dgcl,
 
     timingval tv = timing_start();    
     g4c_h2d_async(hppkts[ns-1], dppkts[ns-1], npkts*PKT_LEN, streams[ns-1]);
+    if (g_debug) {
+	printf("Sync\n");
+	g4c_stream_sync(streams[ns-1]);
+    }
     g4c_gpu_classify_pkts(dgcl, npkts, dppkts[ns-1], PKT_LEN, 1, 12, dpress[ns-1],
 			  res_stride, res_ofs, streams[ns-1]);
+    if (g_debug) {
+	printf("Sync\n");
+	g4c_stream_sync(streams[ns-1]);
+    }
     g4c_d2h_async(dpress[ns-1], hpress[ns-1], npkts*res_stride, streams[ns-1]);
+    if (g_debug) {
+	printf("Sync\n");
+    }
     g4c_stream_sync(streams[ns-1]);
     int64_t us = timing_stop(&tv);
     
@@ -164,8 +177,10 @@ int main(int argc, char *argv[])
     printf("Generating patterns... ");
     gen_rand_ptns(ptns, nptns);
     printf(" Done.\n");
-    
+
+    printf("Initialize G4C... ");
     eval_init();
+    printf(" Done.\n");
 
     for (int i=0; i<nstream; i++) {
 	hppkts[i] = (uint8_t*)g4c_alloc_page_lock_mem(npkts*PKT_LEN);
@@ -180,7 +195,10 @@ int main(int argc, char *argv[])
 	printf(" Done.\n");
     }
 
+    printf("press any key to continue:\n"); getchar();
+
     printf("Build classifier... ");
+    getchar();
     gcl = g4c_create_classifier(ptns, nptns, 1, streams[0]);
     if (gcl)
 	printf(" Done.\n");

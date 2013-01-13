@@ -6,8 +6,8 @@ extern "C" {
 #endif
 	
 #define __round_mask(x, y) ((__typeof__(x))((y)-1))
-#define g4c_round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
-#define g4c_round_down(x, y) ((x) & ~__round_mask(x, y))
+#define g4c_round_up(x, y) ((((x)-1) | __round_mask((x), (y)))+1)
+#define g4c_round_down(x, y) ((x) & ~__round_mask((x), (y)))
 
 #define g4c_to_ul(x) ((unsigned long)(x))
     
@@ -15,7 +15,7 @@ extern "C" {
     ((void*)(((unsigned char*)(ptr)) + (offset)))
 
 #define g4c_ptr_offset(hptr, lptr)					\
-    ((unsigned long)((unsigned char*)(hptr) - (unsigned char*)(lptr)))
+    ((long)((unsigned char*)(hptr) - (unsigned char*)(lptr)))
 
 #define g4c_ptr_within(bptr, sz, ptr)			\
     (g4c_to_ul(ptr) >= g4c_to_ul(bptr) &&		\

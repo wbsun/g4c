@@ -48,7 +48,7 @@ extern "C" {
         unsigned int memflags;
 			
         ac_state_t *states;
-        int nstates;
+        int nstates;        
 			
         int *transitions;
         int *outputs;

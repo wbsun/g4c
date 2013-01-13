@@ -41,7 +41,7 @@ extern "C" {
 #define G4C_PAGE_SHIFT 12
 #define G4C_PAGE_MASK ((unsigned long)((~(unsigned long)(0x0))<<(G4C_PAGE_SHIFT)))
 	
-#define G4C_MEM_ALIGN 32
+#define G4C_MEM_ALIGN 4
 
 #define G4C_EMCPY -10000
 #define G4C_EKERNEL -10001

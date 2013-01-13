@@ -9,7 +9,7 @@
 #include <map>
 #include <set>
 
-#include "g4c.hh"
+#include "internal.hh"
 #include "g4c_cl.h"
 
 using namespace std;

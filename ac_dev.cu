@@ -1,6 +1,6 @@
 #include <cuda.h>
 #include "ac.hh"
-#include "g4c.hh"
+#include "internal.hh"
 #include <errno.h>
 #include <stdint.h>
 

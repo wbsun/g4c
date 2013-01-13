@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "g4c_lookup.h"
-#include "g4c.hh"
+#include "g4c_lpm.h"
+#include "internal.hh"
 #include <cuda.h>
 
 #include <vector>

@@ -8,38 +8,38 @@ CXXLIBFLAGS  = -fPIC
 NVCCFLAGS    = -arch=sm_20 -O2
 NVCCLIBFLAGS = --shared --compiler-options '-fPIC'
 
-MMSRCS   = g4c_mm.cc
-CORESRCS = $(MMSRCS) g4c.cu
+MMSRCS   = mm.cc
+CORESRCS = $(MMSRCS) main.cu
 ACSRCS   = ac.cc ac_dev.cu
-CLSRCS   = g4c_cl.cu
-LUSRCS   = lookup.cu
+CLSRCS   = cl.cu
+LUSRCS   = lpm.cu
 
 ALLSRCS  = $(CORESRCS) $(ACSRCS) $(CLSRCS) $(LUSRCS)
 
 LIBOBJS  = $(addsuffix -lib.o, $(basename $(ALLSRCS)))
 
-MMDEPS    = g4c_mm.cc g4c_mm.h g4c_mm.hh g4c.h
-COREDEPS  = g4c.cu g4c.hh g4c.h
+MMDEPS    = mm.cc mm.h mm.hh g4c.h
+COREDEPS  = main.cu internal.hh g4c.h
 ACDEPS    = ac.cc ac.hh g4c_ac.h g4c.h
-ACDEVDEPS = ac_dev.cu ac.hh g4c_ac.h g4c.hh g4c.h
-LPMDEPS   = lookup.cu g4c_lookup.h g4c.hh g4c.h
-CLDEPS    = g4c_cl.cu g4c_cl.h g4c.hh g4c.h
+ACDEVDEPS = ac_dev.cu ac.hh g4c_ac.h internal.hh g4c.h
+LPMDEPS   = lpm.cu g4c_lpm.h internal.hh g4c.h
+CLDEPS    = cl.cu g4c_cl.h internal.hh g4c.h
 
 all: libg4c
 
 libg4c: $(LIBOBJS)
 	$(NVCC) $(NVCCFLAGS) $(NVCCLIBFLAGS) $^ -o $@.so
 
-lookup-lib.o: $(LPMDEPS)
+lpm-lib.o: $(LPMDEPS)
 	$(NVCC) $(NVCCFLAGS) $(NVCCLIBFLAGS) -c $< -o $@
 
-g4c_cl-lib.o: $(CLDEPS)
+cl-lib.o: $(CLDEPS)
 	$(NVCC) $(NVCCFLAGS) $(NVCCLIBFLAGS) -c $< -o $@
 
-g4c_mm-lib.o: $(MMDEPS)
+mm-lib.o: $(MMDEPS)
 	$(CXX) $(CXXFLAGS) $(CXXLIBFLAGS) -c $< -o $@
 
-g4c-lib.o: $(COREDEPS)
+main-lib.o: $(COREDEPS)
 	$(NVCC) $(NVCCFLAGS) $(NVCCLIBFLAGS) -c $< -o $@
 
 ac-lib.o: $(ACDEPS)
@@ -52,14 +52,14 @@ ac_dev-lib.o: $(ACDEVDEPS)
 install-lib: libg4c.so
 	cp libg4c.so /usr/lib/
 	cp g4c.h /usr/include/
-	cp g4c_lookup.h /usr/include/
+	cp g4c_lpm.h /usr/include/
 	cp g4c_ac.h /usr/include/
 	cp g4c_cl.h /usr/include/
 
 uninstall-lib:
 	rm -f /usr/lib/libg4c.so
 	rm -f /usr/include/g4c.h
-	rm -f /usr/include/g4c_lookup.h
+	rm -f /usr/include/g4c_lpm.h
 	rm -r /usr/include/g4c_ac.h
 
 

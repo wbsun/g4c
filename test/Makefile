@@ -5,29 +5,29 @@ NVCC=nvcc
 CXXFLAGS=-O2
 NVCCFLAGS=-arch=sm_20 -O2
 
-COMMSRCS=../g4c_mm.cc ../g4c.cu
+COMMSRCS=../mm.cc ../main.cu
 
 EACSRCS=$(COMMSRCS) ../ac.cc ../ac_dev.cu evalac.cc
 EACOBJS=$(addsuffix -eval.o, $(basename $(notdir $(EACSRCS))))
 
-ECLSRCS = $(COMMSRCS) ../g4c_cl.cu evalcl.cc
+ECLSRCS = $(COMMSRCS) ../cl.cu evalcl.cc
 ECLOBJS = $(addsuffix -eval.o, $(basename $(notdir $(ECLSRCS))))
 
-CLDEPS = ../g4c_cl.cu ../g4c_cl.h ../g4c.h ../g4c.hh
+CLDEPS = ../cl.cu ../g4c_cl.h ../g4c.h ../internal.hh
 ECLDEPS = evalcl.cc ../g4c.h ../g4c_cl.h utils.h
 
-G4CDEPS=../g4c.cu ../g4c.hh ../g4c.h
-G4CMMDEPS=../g4c_mm.cc ../g4c_mm.h ../g4c_mm.hh ../g4c.h
+G4CDEPS=../main.cu ../internal.hh ../g4c.h
+G4CMMDEPS=../mm.cc ../mm.h ../mm.hh ../g4c.h
 ACDEPS=../ac.cc ../ac.hh ../g4c_ac.h ../g4c.h
-ACDEVDEPS=../ac_dev.cu ../ac.hh ../g4c_ac.h ../g4c.hh ../g4c.h
+ACDEVDEPS=../ac_dev.cu ../ac.hh ../g4c_ac.h ../internal.hh ../g4c.h
 EACDEPS=evalac.cc ../g4c.h ../g4c_ac.h utils.h
 
-ELUSRCS=$(COMMSRCS) ../lookup.cu evallu.cc
+ELUSRCS=$(COMMSRCS) ../lpm.cu evallu.cc
 ELUOBJS=$(addsuffix -eval.o, $(basename $(notdir $(ELUSRCS))))
-LUDEPS=../lookup.cu ../g4c_lookup.h ../g4c.h
-ELUDEPS=evallu.cc ../g4c.h ../g4c_lookup.h utils.h
+LUDEPS=../lpm.cu ../g4c_lpm.h ../g4c.h
+ELUDEPS=evallu.cc ../g4c.h ../g4c_lpm.h utils.h
 
-all: elu eac
+all: elu eac ecl
 
 elu: $(ELUOBJS)
 	$(NVCC) $(NVCCFLAGS) $^ -o $@
@@ -41,23 +41,23 @@ ecl: $(ECLOBJS)
 evalcl-eval.o: $(ECLDEPS)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-g4c_cl-eval.o: $(CLDEPS)
+cl-eval.o: $(CLDEPS)
 	$(NVCC) $(NVCCFLAGS) -c $< -o $@
 
 
 evallu-eval.o: $(ELUDEPS)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-lookup-eval.o: $(LUDEPS)
+lpm-eval.o: $(LUDEPS)
 	$(NVCC) $(NVCCFLAGS) -c $< -o $@
 
 evalac-eval.o: $(EACDEPS)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-g4c_mm-eval.o: $(G4CMMDEPS)
+mm-eval.o: $(G4CMMDEPS)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-g4c-eval.o: $(G4CDEPS)
+main-eval.o: $(G4CDEPS)
 	$(NVCC) $(NVCCFLAGS) -c $< -o $@
 
 ac-eval.o: $(ACDEPS)

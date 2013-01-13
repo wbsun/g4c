@@ -6,8 +6,8 @@ using namespace std;
 
 #include <stdint.h>
 
-#include "g4c_mm.hh"
-#include "g4c_mm.h"
+#include "mm.hh"
+#include "mm.h"
 
 static vector<MMContext> mmcontexts;
 

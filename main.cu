@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <errno.h>
 #include "g4c.h"
-#include "g4c_mm.h"
-#include "g4c.hh"
+#include "mm.h"
+#include "internal.hh"
 
 static const char *G4C_SEMCPY = "GPU memory copy failed";
 static const char *G4C_SEKERNEL = "GPU kernel launch or execution failed";

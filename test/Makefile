@@ -18,8 +18,8 @@ ECLDEPS = evalcl.cc ../g4c.h ../g4c_cl.h utils.h
 
 G4CDEPS=../main.cu ../internal.hh ../g4c.h
 G4CMMDEPS=../mm.cc ../mm.h ../mm.hh ../g4c.h
-ACDEPS=../ac.cc ../ac.hh ../g4c_ac.h ../g4c.h
-ACDEVDEPS=../ac_dev.cu ../ac.hh ../g4c_ac.h ../internal.hh ../g4c.h
+ACDEPS=../ac.cc  ../g4c_ac.h ../g4c.h
+ACDEVDEPS=../ac_dev.cu  ../g4c_ac.h ../internal.hh ../g4c.h
 EACDEPS=evalac.cc ../g4c.h ../g4c_ac.h utils.h
 
 ELUSRCS=$(COMMSRCS) ../lpm.cu evallu.cc

@@ -665,12 +665,12 @@ extern "C" int
 g4c_cpu_classify_pkt(g4c_classifier_t *gcl, uint8_t *ttlptr)
 {
     uint32_t *r[5];
-    uint8_t pt = ttlptr[0] & PROTO_MASK;
+    uint8_t pt = ttlptr[1] & PROTO_MASK;
     int rid = gcl->pt_trs[pt];
     r[0] = cl_res(gcl->pt_ress, rid, gcl->res_stride);
 
     
-    uint32_t ipa = *(uint32_t*)(ttlptr+3);    
+    uint32_t ipa = *(uint32_t*)(ttlptr+4);    
     rid = *cl_ipa_trans(gcl->saddr_trs, 0, (ipa)&0xff);
     rid = *cl_ipa_trans(gcl->saddr_trs, rid, (ipa>>8)&0xff);
     rid = *cl_ipa_trans(gcl->saddr_trs, rid, (ipa>>16)&0xff);
@@ -678,14 +678,14 @@ g4c_cpu_classify_pkt(g4c_classifier_t *gcl, uint8_t *ttlptr)
     r[1] = cl_res(gcl->saddr_ress, rid, gcl->res_stride);
 
     
-    ipa = *(uint32_t*)(ttlptr+7);    
+    ipa = *(uint32_t*)(ttlptr+8);    
     rid = *cl_ipa_trans(gcl->daddr_trs, 0, (ipa)&0xff);
     rid = *cl_ipa_trans(gcl->daddr_trs, rid, (ipa>>8)&0xff);
     rid = *cl_ipa_trans(gcl->daddr_trs, rid, (ipa>>16)&0xff);
     rid = *cl_ipa_trans(gcl->daddr_trs, rid, (ipa>>24)&0xff);	
     r[2] = cl_res(gcl->daddr_ress, rid, gcl->res_stride);
 
-    ipa = (*(uint32_t*)(ttlptr+11));
+    ipa = (*(uint32_t*)(ttlptr+12));
 	
     rid = gcl->sp_trs[ipa & 0xffff];
     r[3] = cl_res(gcl->sp_ress, rid, gcl->res_stride);
@@ -721,7 +721,7 @@ gpu_cl_0(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs
     }
     else if (threadIdx.y == 1)
     {
-	uint32_t sa = *(uint32_t*)(pkt+ttl_ofs+3);
+	uint32_t sa = *(uint32_t*)(pkt+ttl_ofs+4);
 	int nid = 0;
 
 	nid = *cl_ipa_trans(gcl->dev_saddr_trs, 0, ((sa)&0xff));
@@ -733,7 +733,7 @@ gpu_cl_0(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs
     }
     else if (threadIdx.y == 2)
     {
-	uint32_t da = *(uint32_t*)(pkt+ttl_ofs+7);
+	uint32_t da = *(uint32_t*)(pkt+ttl_ofs+8);
 	int nid = 0;
 	
 	nid = *cl_ipa_trans(gcl->dev_daddr_trs, 0, ((da)&0xff));
@@ -745,7 +745,7 @@ gpu_cl_0(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs
     }
     else if (threadIdx.y == 3)
     {
-	uint32_t p = (*(uint32_t*)(pkt+ttl_ofs+11));
+	uint32_t p = (*(uint32_t*)(pkt+ttl_ofs+12));
 	
 	int rid = gcl->dev_sp_trs[(p & PORT_MASK)];
 	comp_ress[threadIdx.x + (CL_PKTS_PER_BLK*3)] = cl_res(gcl->dev_sp_ress, rid, gcl->res_stride);

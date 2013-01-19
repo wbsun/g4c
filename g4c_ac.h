@@ -73,6 +73,42 @@ extern "C" {
         ac_machine_t *hacm;
     } ac_dev_machine_t;
 
+    typedef struct _g4c_acm_t {
+	void *mem;
+	size_t memsz;
+	void *devmem;
+
+	int nstates;
+	int *transitions;
+	int *outputs;
+
+	int *dtranstions;
+	int *doutputs;
+    } g4c_acm_t;
+
+#define g4c_acm_htransitions(acm, id) \
+    ((int*)((acm)->transitions + (id)*AC_ALPHABET_SIZE))
+#define g4c_acm_dtransitions(acm, id) \
+    ((int*)((acm)->dtransitions + (id)*AC_ALPHABET_SIZE))
+#define g4c_acm_houtput(acm, id) \
+    ((int*)((acm)->outputs + (id)))
+#define g4c_acm_doutput(acm, id) \
+    ((int*)((acm)->doutputs + (id)))
+
+    g4c_acm_t *g4c_create_matcher(
+	char **ptns, in nptns, int withdev, int stream);
+
+    // Result values: 0 no match; pos-num, rule idx + 1.
+    int g4c_gpu_acm_match(
+	g4c_acm_t *dacm, int nr,
+	uint8_t *ddata, uint32_t data_stride, uint32_t data_ofs,
+	int *dlens,
+	int *dress, uint32_t res_stride, uint32_t res_ofs,
+	int s, int mtype);
+    int g4c_cpu_acm_match(
+	g4c_acm_t *acm, uint8_t *data, int len);
+	
+
     int ac_build_machine(
         ac_machine_t *acm,
         char **patterns,
@@ -104,7 +140,7 @@ extern "C" {
 
     /*
      * Prepare ACM matching on GPU by copying ACM in host memory to
-     * device memory.
+     * device memory. 
      *
      * hacm is the ACM machine in host memory. dacm is the device one.
      *
@@ -131,6 +167,7 @@ extern "C" {
                    ac_dev_machine_t *dacm, int s, unsigned int mtype);
 
     // res_stride and res_ofs are for int type, not bytes offset or size
+    // This is a much since GPU can't read non-aligned data pointers.
     int ac_gmatch2_ofs(char *dstrs, int n, int stride, int *dlens, int *dress,
 		       ac_dev_machine_t *dacm, int s, unsigned int mtype,
 		       uint32_t pkt_ofs, uint32_t res_stride, uint32_t res_ofs);

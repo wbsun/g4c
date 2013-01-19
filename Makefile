@@ -20,8 +20,8 @@ LIBOBJS  = $(addsuffix -lib.o, $(basename $(ALLSRCS)))
 
 MMDEPS    = mm.cc mm.h mm.hh g4c.h
 COREDEPS  = main.cu internal.hh g4c.h
-ACDEPS    = ac.cc ac.hh g4c_ac.h g4c.h
-ACDEVDEPS = ac_dev.cu ac.hh g4c_ac.h internal.hh g4c.h
+ACDEPS    = ac.cc g4c_ac.h g4c.h
+ACDEVDEPS = ac_dev.cu g4c_ac.h internal.hh g4c.h
 LPMDEPS   = lpm.cu g4c_lpm.h internal.hh g4c.h
 CLDEPS    = cl.cu g4c_cl.h internal.hh g4c.h
 

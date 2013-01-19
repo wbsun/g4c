@@ -73,7 +73,7 @@ gpu_bench(g4c_classifier_t *hgcl, g4c_classifier_t *dgcl,
 	printf("Sync\n");
 	g4c_stream_sync(streams[ns-1]);
     }
-    g4c_gpu_classify_pkts(dgcl, npkts, dppkts[ns-1], PKT_LEN, 1, 12, dpress[ns-1],
+    g4c_gpu_classify_pkts(dgcl, npkts, dppkts[ns-1], PKT_LEN, 0, 12, dpress[ns-1],
 			  res_stride, res_ofs, streams[ns-1]);
     if (g_debug) {
 	printf("Sync\n");
@@ -92,7 +92,7 @@ gpu_bench(g4c_classifier_t *hgcl, g4c_classifier_t *dgcl,
     tv = timing_start();    
     for (int i=0; i<ns; i++) {
 	g4c_h2d_async(hppkts[i], dppkts[i], npkts*PKT_LEN, streams[i]);
-	g4c_gpu_classify_pkts(dgcl, npkts, dppkts[i], PKT_LEN, 1, 12, dpress[i],
+	g4c_gpu_classify_pkts(dgcl, npkts, dppkts[i], PKT_LEN, 0, 12, dpress[i],
 			      res_stride, res_ofs, streams[i]);
 	g4c_d2h_async(dpress[i], hpress[i], npkts*res_stride, streams[i]);
     }

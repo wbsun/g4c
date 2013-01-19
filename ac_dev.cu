@@ -1,5 +1,5 @@
 #include <cuda.h>
-#include "ac.hh"
+#include "g4c_ac.h"
 #include "internal.hh"
 #include <errno.h>
 #include <stdint.h>
@@ -219,7 +219,7 @@ ac_gmatch(char *dstrs, int nstrs, int stride, int *dlens,
 	  unsigned int *dress, ac_dev_machine_t *dacm, int s)
 {
     cudaStream_t st = g4c_get_stream(s);
-    int nblocks = g4c_round_up(nstrs/32, 32);
+    int nblocks = g4c_round_up(nstrs, 32)/32;
 
     gpu_ac_match_general<<<nblocks, 32, 0, st>>>(
 	dstrs, stride, dlens, dress, dacm);
@@ -232,7 +232,7 @@ ac_gmatch2(char *dstrs, int nstrs, int stride, int *dlens,
 	   unsigned int mtype)
 {
     cudaStream_t st = g4c_get_stream(s);
-    int nblocks = g4c_round_up(nstrs/32, 32);
+    int nblocks = g4c_round_up(nstrs, 32)/32;
 
     switch(mtype) {
     case 1:
@@ -273,5 +273,83 @@ ac_gmatch2_ofs(char *dstrs, int n, int stride, int *dlens, int *dress,
 	       ac_dev_machine_t *dacm, int s, unsigned int mtype,
 	       uint32_t pkt_ofs, uint32_t res_stride, uint32_t res_ofs)
 {
+    return 0;
+}
+
+
+__global__ void
+gacm_match_l0(g4c_acm_t *dacm,
+	      uint8_t *data, uint32_t data_stride, uint32_t data_ofs,
+	      int *lens,
+	      int *ress, uint32_t res_stride, uint32_t res_ofs)
+{
+    int tid = threadIdx.x + blockIdx.x*blockDim.x;
+
+    uint8_t *payload = data + data_stride*tid + data_ofs;
+    int mylen = lens[tid]-data_ofs;
+
+    int outidx = 0x1fffffff;
+    int nid, cid = 0, tres;
+    for (int i=0; i<mylen; i++) {
+	nid = g4c_acm_dtransitions(dacm, cid)[payload[i]];
+        tres = *g4c_acm_doutput(dacm, cid);
+	if (tres && tres < outidx) {
+	    outidx = tres;
+	}
+	cid = nid;
+    }
+    if (outidx == 0x1fffffff)
+	outidx = 0;
+    *(ress + tid*res_stride+res_ofs) = outidx;
+}
+
+__global__ void
+gacm_match_nl0(g4c_acm_t *dacm,
+	      uint8_t *data, uint32_t data_stride, uint32_t data_ofs,
+	      int *ress, uint32_t res_stride, uint32_t res_ofs)
+{
+    int tid = threadIdx.x + blockIdx.x*blockDim.x;
+
+    uint8_t *payload = data + data_stride*tid + data_ofs;
+    int *res = ress + tid*res_stride + res_ofs;
+
+    int outidx = 0x1fffffff;
+    int nid, cid = 0, tres;
+    for (int i=0; i<(data_stride-data_ofs); i++) {
+	nid = g4c_acm_dtransitions(dacm, cid)[payload[i]];
+        tres = *g4c_acm_doutput(dacm, cid);
+	if (tres && tres < outidx) {
+	    outidx = tres;
+	}
+	cid = nid;
+    }
+    if (outidx == 0x1fffffff)
+	outidx = 0;
+    *(ress + tid*res_stride+res_ofs) = outidx;
+}
+
+extern "C" int
+g4c_gpu_acm_match(
+    g4c_acm_t *dacm, int nr,
+    uint8_t *ddata, uint32_t data_stride, uint32_t data_ofs,
+    int *dlens,
+    int *dress, uint32_t res_stride, uint32_t res_ofs,
+    int s, int mtype)
+{
+    if (s <= 0)
+	return -1;
+    
+    cudaStream_t stream = g4c_get_stream(s);
+    int nblocks = g4c_round_up(nr, 32)/32;
+    int nthreads = nr > 32? 32:nr;
+    if (dlens) {
+	gacm_match_l0<<<nblocks, nthreads, 0, stream>>>(
+	    dacm, ddata, data_stride, data_ofs, dlens,
+	    dress, res_stride, res_ofs);
+    } else {
+	gacm_match_nl0<<<nblocks, nthreads, 0, stream>>>(
+	    dacm, ddata, data_stride, data_ofs,
+	    dress, res_stride, res_ofs);
+    }
     return 0;
 }

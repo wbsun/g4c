@@ -88,9 +88,16 @@ extern "C" {
     int g4c_cpu_classify_pkt(g4c_classifier_t *gcl, uint8_t *ttlptr);
 
     // res_stride is for int*, not byte ptr, res_ofs the same.
-    int g4c_gpu_classify_pkts(g4c_classifier_t *dgcl, int npkts,
-                              uint8_t *data, uint32_t stride, uint32_t ttl_ofs, uint32_t l3hdr_ofs,
-                              int *ress, uint32_t res_stride, uint32_t res_ofs,
+    // Must be 4B aligned at ttl, otherwise GPU can't read 4B data.
+    int g4c_gpu_classify_pkts(g4c_classifier_t *dgcl,
+			      int npkts,
+                              uint8_t *data,
+			      uint32_t stride,
+			      uint32_t ttl_ofs,
+			      uint32_t l3hdr_ofs,
+                              int *ress,
+			      uint32_t res_stride,
+			      uint32_t res_ofs,
                               int s);
 
 #ifdef __cplusplus

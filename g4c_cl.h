@@ -11,7 +11,7 @@ extern "C" {
 #define G4C_IPA_STATE_BITS 8
 
 #ifndef PORT_BITS
-#define PORT_BITS 16
+#define PORT_BITS 8
 #endif
 #define PORT_STATE_SIZE (1<<PORT_BITS)
 #define PORT_MASK (((uint32_t)0xffff)>>(16-PORT_BITS))
@@ -83,6 +83,8 @@ extern "C" {
         uint32_t *dev_dp_ress;
         uint32_t *dev_pt_ress;        
     } g4c_classifier_t;
+
+    void g4c_cl_init(int n, char *keys, int *values);
 
     g4c_classifier_t *g4c_create_classifier(g4c_pattern_t *ptn, int nptn, int create_dev, int stream);
     int g4c_cpu_classify_pkt(g4c_classifier_t *gcl, uint8_t *ttlptr);

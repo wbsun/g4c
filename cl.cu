@@ -155,8 +155,16 @@ _g4c_cvt_cl(Classifier *cl, int with_dev, int stream)
     if (with_dev) {
 	dgcl = (g4c_classifier_t*)g4c_alloc_dev_mem(msz);
     }
-    if (!gcl || (with_dev && !dgcl))
+    if (verbose_level)
+	fprintf(stderr, "Total to alloc %.0lf MB:\n"
+		"res_sz %lu, sa_sz %luKB, da_sz %luKB, "
+		"sp_sz %luKB, dp_sz %luKB, pt_sz %luKB\n",
+		((double)msz)/((double)(1<<20)),
+		res_sz, sa_sz>>10, da_sz>>10, sp_sz>>10,
+		dp_sz>>10, pt_sz>>10);
+    if (!gcl || (with_dev && !dgcl)) {	
 	return 0;
+    }
 
     memset(gcl, 0, msz);
 
@@ -687,9 +695,9 @@ g4c_cpu_classify_pkt(g4c_classifier_t *gcl, uint8_t *ttlptr)
 
     ipa = (*(uint32_t*)(ttlptr+12));
 	
-    rid = gcl->sp_trs[ipa & 0xffff];
+    rid = gcl->sp_trs[(ipa & 0xffff) & PORT_MASK];
     r[3] = cl_res(gcl->sp_ress, rid, gcl->res_stride);
-    rid = gcl->dp_trs[ipa>>16];
+    rid = gcl->dp_trs[(ipa>>16) & PORT_MASK];
     r[4] = cl_res(gcl->dp_ress, rid, gcl->res_stride);
 
     for (int i=0; i<gcl->res_stride; i++) {
@@ -755,7 +763,7 @@ gpu_cl_0(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs
 
     __syncthreads();
 
-    if (threadIdx.y==3) {
+    if (threadIdx.y==0) {
 	uint32_t *r[5];
 	r[0] = comp_ress[threadIdx.x];
 	r[1] = comp_ress[threadIdx.x + CL_PKTS_PER_BLK];
@@ -764,7 +772,7 @@ gpu_cl_0(g4c_classifier_t *gcl, uint8_t *data, uint32_t stride, uint32_t ttl_ofs
 	r[4] = comp_ress[threadIdx.x + (CL_PKTS_PER_BLK<<2)];
 
 	// #pragma unroll
-	for (int i=0; i<gcl->res_stride; i++) {
+	for (int i=0; i<gcl->res_stride/sizeof(uint32_t); i++) {
 	    uint32_t v = r[0][i] & r[1][i];// & r[2][i] & r[3][i] & r[4][i];;
 
 	    // if (v) {

@@ -380,8 +380,8 @@ g4c_gpu_acm_match(
     int *dress, uint32_t res_stride, uint32_t res_ofs,
     int s, int mtype)
 {
-    if (s <= 0)
-	return -1;
+//    if (s <= 0)
+//	return -1;
     
     cudaStream_t stream = g4c_get_stream(s);
     int nblocks = g4c_round_up(nr, 32)/32;

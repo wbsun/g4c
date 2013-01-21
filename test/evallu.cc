@@ -127,8 +127,7 @@ int main(int argc, char *argv[])
     struct rtlu_eval *items = (struct rtlu_eval*)malloc(sizeof(struct rtlu_eval)*g_nr_stream);
     int *streams = (int*)malloc(sizeof(int)*g_nr_stream);
 
-    int nrpkts[] = { 32, 64, 128, 256, 512, 1024, 2048, 1024*3, 4096, 1024*5, 1024*6,
-		     1024*7, 1024*8};
+    int nrpkts[] = {32, 64, 128, 256, 512, 1024, 2048, 4096, 8192};
 
     for (int i=0; i<g_nr_stream; i++) {
 	streams[i] = g4c_alloc_stream();
@@ -150,9 +149,12 @@ int main(int argc, char *argv[])
 	for (int i=0; i<g_nr_stream; i++)
 	    g4c_stream_sync(streams[i]);
 	int64_t usec = timing_stop(&tv)/g_nr_stream;
-	printf("Warming up test:\nGPU size %d pkts, time us %ld, rate %.3lf Mpkts/s\n\n",
-	       nrpkts[0], usec, ((double)nrpkts[0])/(double)usec);
+//	printf("Warming up test:\nGPU size %d pkts, time us %ld, rate %.3lf Mpkts/s\n\n",
+//	       nrpkts[0], usec, ((double)nrpkts[0])/(double)usec);
     }
+
+    int64_t *custimes = new int64_t[sizeof(nrpkts)/sizeof(int)];
+    int64_t *gustimes = new int64_t[sizeof(nrpkts)/sizeof(int)];
 
     for (int j=0; j<sizeof(nrpkts)/sizeof(int); j++) {
 	timingval tv = timing_start();
@@ -166,24 +168,26 @@ int main(int argc, char *argv[])
 	}
 	for (int i=0; i<g_nr_stream; i++)
 	    g4c_stream_sync(streams[i]);
-	int64_t usec = timing_stop(&tv)/g_nr_stream;
-	printf("GPU size %d pkts, time us %ld, rate %.3lf Mpkts/s\n",
-	       nrpkts[j], usec, ((double)nrpkts[j])/(double)usec);
-
+	gustimes[j] = timing_stop(&tv);
+	
 	timingval tvc = timing_start();
-	for(int i=0; i<nrpkts[j]; i+=8) {
-	    items[0].hports[i] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i]);
-	    items[0].hports[i+1] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i+1]);
-	    items[0].hports[i+2] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i+2]);
-	    items[0].hports[i+3] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i+3]);
-	    items[0].hports[i+4] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i+4]);
-	    items[0].hports[i+5] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i+5]);
-	    items[0].hports[i+6] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i+6]);
-	    items[0].hports[i+7] = g4c_ipv4_lookup(items[0].hlpmt, items[0].haddrs[i+7]);
+	for (int b=0; b<g_nr_stream; b++) {
+	    for(int i=0; i<nrpkts[j]; i++) {
+		items[b].hports[i] = g4c_ipv4_lookup(items[b].hlpmt, items[b].haddrs[i]);
+	    }
 	}
-	int64_t cus = timing_stop(&tvc);
-	printf("CPU size %d pkts, time us %ld, rate %.3lf Mpkts/s\n\n",
-	       nrpkts[j], cus, ((double)nrpkts[j])/(double)cus);
+
+	custimes[j] = timing_stop(&tvc);
+    }
+
+    for (int j=0; j<sizeof(nrpkts)/sizeof(int); j++) {
+	printf("GPU size %5d pkts, time us %6ld, rate %8.3lf Mpkts/s\n",
+	       nrpkts[j], gustimes[j]/g_nr_stream, ((double)nrpkts[j])/(double)(gustimes[j]/g_nr_stream));
+    }
+
+    for (int j=0; j<sizeof(nrpkts)/sizeof(int); j++) {
+	printf("CPU size %5d pkts, time us %6ld, rate %8.3lf Mpkts/s\n",
+	       nrpkts[j], custimes[j]/g_nr_stream, ((double)nrpkts[j]*g_nr_stream)/(double)(custimes[j]));
     }
 
     g4c_exit();

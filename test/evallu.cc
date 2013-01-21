@@ -8,7 +8,7 @@
 #include "../g4c_lpm.h"
 #include "utils.h"
 
-int g_nbits = 1;
+int g_nbits = 4;
 int g_nrt = 1024;
 
 struct rtlu_eval {
@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
     struct rtlu_eval *items = (struct rtlu_eval*)malloc(sizeof(struct rtlu_eval)*g_nr_stream);
     int *streams = (int*)malloc(sizeof(int)*g_nr_stream);
 
-    int nrpkts[] = { 256, 512, 1024, 2048, 1024*3, 4096, 1024*5, 1024*6,
+    int nrpkts[] = { 32, 64, 128, 256, 512, 1024, 2048, 1024*3, 4096, 1024*5, 1024*6,
 		     1024*7, 1024*8};
 
     for (int i=0; i<g_nr_stream; i++) {

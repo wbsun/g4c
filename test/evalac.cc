@@ -29,14 +29,27 @@ gen_patterns(int np, int plen)
     char *ptn = p+np*sizeof(char*);
     char **pp = (char**)p;
 
-    for (int i=0; i<np; i++) {
+    for (int i=0; i<np; i+=16) {
 	pp[i] = ptn;
 	int j;
 	int mylen = (random()%(plen-4)) + 3;
 	for (j=0; j<mylen; j++)
-	    ptn[j] = (char)(random()%60 + 'A');
+	    ptn[j] = (char)(random()%40 + 'A');
 	ptn[j] = (char)0;
 	ptn += plen;
+
+	// simulating common prefix:
+	for (int k=1; k<=15; k++) {
+	    if (i+k == np)
+		return pp;
+	    
+	    pp[i+k] = ptn;
+	    for (j=0; j<mylen-1; j++)
+		ptn[j] = pp[i][j];
+	    ptn[j] = (char)(random()%40+'A');
+	    ptn[j+1] = (char)0;
+	    ptn += plen;
+	}
     }
 
     return pp;    
@@ -124,7 +137,7 @@ int main(int argc, char *argv[])
     int nptns = 1024;
     int npkts = 1024;
 
-    int nrpkts[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192};
+    int nrpkts[] = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 1<<14, 1<<15};
     int nszs = sizeof(nrpkts)/sizeof(int);
     npkts = nrpkts[nszs-1];
 
@@ -220,7 +233,7 @@ int main(int argc, char *argv[])
 
     int64_t *gtimes = new int64_t[nszs];
     int64_t *ctimes = new int64_t[nszs];
-    int *blens = new int[nszs];
+    long *blens = new long[nszs];
 
     for (int b=0; b<nszs; b++) {
 	tv = timing_start();    
@@ -245,14 +258,14 @@ int main(int argc, char *argv[])
 	    g4c_stream_sync(eval_items[i].stream);
 	gtimes[b] = timing_stop(&tv)/ns;
 
-	int ttlen = 0;
+	long ttlen = 0;
 	for (int i=0; i<ns; i++) {
 	    if (g_rand_lens) {
 		for (int k=0; k<nrpkts[b]; k++)
 		    ttlen += eval_items[i].lens[k];
 	    }
 	    else
-		ttlen += nrpkts[b]*(eval_items[i].stride);
+		ttlen += (long)nrpkts[b]*(long)(eval_items[i].stride);
 	}
 	blens[b] = ttlen/ns;
     }
@@ -272,14 +285,14 @@ int main(int argc, char *argv[])
     }
 
     for (int b=0; b<nszs; b++) {
-	printf("Done GPU, pkts %6d, BW %12.5lf MB/s, rate %12.6lf Mpps\n",
-	       nrpkts[b], ((double)blens[b])/(double)gtimes[b],
+	printf("Done GPU, pkts %6d, BW %12.5lf Mb/s, rate %12.6lf Mpps\n",
+	       nrpkts[b], (((double)blens[b])/(double)gtimes[b])*8,
 	       ((double)nrpkts[b])/(double)gtimes[b]);
     }
 
     for (int b=0; b<nszs; b++) {
-	printf("Done CPU, pkts %6d, BW %12.5lf MB/s, rate %12.6lf Mpps\n",
-	       nrpkts[b], ((double)(blens[b]*ns))/(double)ctimes[b],
+	printf("Done CPU, pkts %6d, BW %12.5lf Mb/s, rate %12.6lf Mpps\n",
+	       nrpkts[b], (((double)(blens[b]*ns))/(double)ctimes[b])*8,
 	       ((double)(nrpkts[b]*ns))/(double)ctimes[b]);
     }
  

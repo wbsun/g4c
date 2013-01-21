@@ -311,7 +311,6 @@ gacm_match_nl0(g4c_acm_t *dacm,
     int tid = threadIdx.x + blockIdx.x*blockDim.x;
 
     uint8_t *payload = data + data_stride*tid + data_ofs;
-    int *res = ress + tid*res_stride + res_ofs;
 
     int outidx = 0x1fffffff;
     int nid, cid = 0, tres;
@@ -326,6 +325,51 @@ gacm_match_nl0(g4c_acm_t *dacm,
     if (outidx == 0x1fffffff)
 	outidx = 0;
     *(ress + tid*res_stride+res_ofs) = outidx;
+}
+
+__global__ void
+gacm_match_l1(g4c_acm_t *dacm,
+	      uint8_t *data, uint32_t data_stride, uint32_t data_ofs,
+	      int *lens,
+	      int *ress, uint32_t res_stride, uint32_t res_ofs)
+{
+    int tid = threadIdx.x + blockIdx.x*blockDim.x;
+
+    uint8_t *payload = data + data_stride*tid + data_ofs;
+    int mylen = lens[tid]-data_ofs;
+
+    int nid, cid = 0, tres;
+    for (int i=0; i<mylen; i++) {
+	nid = g4c_acm_dtransitions(dacm, cid)[payload[i]];
+        tres = *g4c_acm_doutput(dacm, cid);
+	if (tres) {
+	    *(ress + tid*res_stride+res_ofs) = tres;
+	    return;
+	}
+	cid = nid;
+    }
+    *(ress + tid*res_stride+res_ofs) = 0;
+}
+
+__global__ void
+gacm_match_nl1(g4c_acm_t *dacm,
+	      uint8_t *data, uint32_t data_stride, uint32_t data_ofs,
+	      int *ress, uint32_t res_stride, uint32_t res_ofs)
+{
+    int tid = threadIdx.x + blockIdx.x*blockDim.x;
+
+    uint8_t *payload = data + data_stride*tid + data_ofs;
+
+    int nid, cid = 0, tres;
+    for (int i=0; i<(data_stride-data_ofs); i++) {
+	nid = g4c_acm_dtransitions(dacm, cid)[payload[i]];
+        tres = *g4c_acm_doutput(dacm, cid);
+	if (tres) {
+	    *(ress + tid*res_stride + res_ofs) = tres;
+	}
+	cid = nid;
+    }
+    *(ress + tid*res_stride + res_ofs) = 0;
 }
 
 extern "C" int
@@ -343,13 +387,34 @@ g4c_gpu_acm_match(
     int nblocks = g4c_round_up(nr, 32)/32;
     int nthreads = nr > 32? 32:nr;
     if (dlens) {
-	gacm_match_l0<<<nblocks, nthreads, 0, stream>>>(
-	    dacm, ddata, data_stride, data_ofs, dlens,
-	    dress, res_stride, res_ofs);
+	switch(mtype) {
+	case 1:
+	    gacm_match_l1<<<nblocks, nthreads, 0, stream>>>(
+		dacm, ddata, data_stride, data_ofs, dlens,
+		dress, res_stride, res_ofs);
+	    break;
+	case 0:
+	default:
+	    gacm_match_l0<<<nblocks, nthreads, 0, stream>>>(
+		dacm, ddata, data_stride, data_ofs, dlens,
+		dress, res_stride, res_ofs);
+	    break;
+	}  	    
     } else {
-	gacm_match_nl0<<<nblocks, nthreads, 0, stream>>>(
-	    dacm, ddata, data_stride, data_ofs,
-	    dress, res_stride, res_ofs);
+	switch(mtype) {
+	case 1:
+	    gacm_match_nl1<<<nblocks, nthreads, 0, stream>>>(
+		dacm, ddata, data_stride, data_ofs,
+		dress, res_stride, res_ofs);
+	    break;
+	case 0:
+	default:
+	    gacm_match_nl0<<<nblocks, nthreads, 0, stream>>>(
+		dacm, ddata, data_stride, data_ofs,
+		dress, res_stride, res_ofs);
+	    break;
+	}
     }
+    
     return 0;
 }

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
+#include <sys/time.h>
 #include <errno.h>
 #include <iostream>
 using namespace std;
@@ -15,7 +15,12 @@ static int g_rand_lens = 0;
 static char **
 gen_patterns(int np, int plen)
 {
-    size_t tsz = np*sizeof(char*) + np*(plen+1);
+    struct timeval tv;
+    gettimeofday(&tv, 0);
+
+    srandom((unsigned)(tv.tv_usec));
+
+    size_t tsz = np*sizeof(char*) + np*(plen);
 
     char *p = (char*)malloc(tsz);
     if (!p)
@@ -23,174 +28,248 @@ gen_patterns(int np, int plen)
 
     char *ptn = p+np*sizeof(char*);
     char **pp = (char**)p;
-    srand((unsigned int)clock());
 
     for (int i=0; i<np; i++) {
 	pp[i] = ptn;
 	int j;
-	for (j=0; j<plen; j++)
-	    ptn[j] = (char)(rand()%60 + 'A');
+	int mylen = (random()%(plen-4)) + 3;
+	for (j=0; j<mylen; j++)
+	    ptn[j] = (char)(random()%60 + 'A');
 	ptn[j] = (char)0;
-	ptn += plen+1;
+	ptn += plen;
     }
 
-    return pp;
+    return pp;    
 }
 
 typedef struct {
     void *buf;
-    char *strs;
+    uint8_t *strs;
     int count;
     int stride;
     size_t bufsz;
     int *lens;
     int tlen;
-} str_store;
+    int *ress;
+
+    void *devbuf;
+    uint8_t *devstrs;
+    int* devlens;
+    int *devress;
+
+    int stream;
+} eval_store;
 
 static int
-gen_strings(str_store *sst)
+gen_eval_store(eval_store *sst, int str_stride, int nstrs)
 {
-    sst->bufsz = (sst->stride + sizeof(int)) * sst->count;
-    sst->buf = malloc(sst->bufsz);
+    sst->count = nstrs;
+    sst->stride = str_stride;
+    sst->bufsz = g4c_round_up(sst->stride*sst->count, G4C_PAGE_SIZE) +
+	g4c_round_up(sizeof(int) * sst->count, G4C_PAGE_SIZE)*2;
+    sst->buf = g4c_alloc_page_lock_mem(sst->bufsz);
     if (!sst->buf)
 	return -ENOMEM;
+    sst->devbuf = g4c_alloc_dev_mem(sst->bufsz);
+    if (!sst->buf) {
+	g4c_free_host_mem(sst->buf);
+	return -ENOMEM;
+    }
 
-    sst->strs = (char*)sst->buf;
-    sst->lens = (int*)(g4c_ptr_add(sst->buf, sst->count*sst->stride));
+    sst->strs = (uint8_t*)sst->buf;
+    sst->lens = (int*)(g4c_ptr_add(sst->buf,
+				   g4c_round_up(sst->count*sst->stride, G4C_PAGE_SIZE)));
+    sst->ress = (int*)(g4c_ptr_add(sst->lens,
+				   g4c_round_up(sst->count*sizeof(int), G4C_PAGE_SIZE)));
+
+    sst->devstrs = (uint8_t*)sst->devbuf;
+    sst->devlens = (int*)(g4c_ptr_add(sst->devbuf,
+				      g4c_round_up(sst->count*sst->stride, G4C_PAGE_SIZE)));
+    sst->devress = (int*)(g4c_ptr_add(sst->devlens,
+				      g4c_round_up(sst->count*sizeof(int), G4C_PAGE_SIZE)));
     sst->tlen = 0;
 
-    srand((unsigned int)clock());
     for (int i=0; i<sst->count; i++) {
-	char *s = sst->strs + i*sst->stride;
+	uint8_t *s = sst->strs + i*sst->stride;
 	if (g_rand_lens)
-	    sst->lens[i] = rand()%((sst->stride)-2) + 1;
+	    sst->lens[i] = random()%((sst->stride)-3) + 2;
 	else
 	    sst->lens[i] = sst->stride-1;
 	sst->tlen += sst->lens[i];
 	int j;
 	for (j=0; j<sst->lens[i]; j++)
-	    s[j] = (char)(rand()%60 + 'A');
+	    s[j] = (char)(random()%200)+1;
 	s[j] = (char)0;
+	sst->ress[i] = 0;
     }
 
     return 0;   
 }
 
-static int g_nr_patterns = 8;
-static int g_len_patterns = 16;
-//static int g_nr_strings = 40960;
-//static int g_str_stride = 1024;
-static int g_acm_type=0;
 
-void do_eval(int nstrs, int strstride)
+void gpu_bench(g4c_acm_t *acm, eval_store *eitems, int ns)
 {
-    char** ptns = gen_patterns(g_nr_patterns, g_len_patterns);
+    printf("GPU Bench, warm up: \n");
 
-    str_store sst;
-    sst.count = nstrs;
-    sst.stride = strstride;
-    gen_strings(&sst);
+    timingval tv = timing_start();    
+    g4c_h2d_async(eitems[ns-1].strs, eitems[ns-1].devstrs,
+		  eitems[ns-1].count*eitems[ns-1].stride,
+		  eitems[ns-1].stream);
+    g4c_gpu_acm_match((g4c_acm_t*)acm->devmem, eitems[ns-1].count,
+		      eitems[ns-1].devstrs, eitems[ns-1].stride, 0, 0,
+		      eitems[ns-1].devress, 1, 0,
+		      eitems[ns-1].stream, 0);
+    g4c_d2h_async(eitems[ns-1].devress, eitems[ns-1].ress, eitems[ns-1].count*sizeof(int),
+		  eitems[ns-1].stream);
+    g4c_stream_sync(eitems[ns-1].stream);
+    int64_t us = timing_stop(&tv);
+    
+    printf("Done warm up,      time %9ld us, BW %12.6lf MB/s, rate %12.6lf Mpkt/s\n",
+	   us, ((double)eitems[ns-1].tlen)/(double)us,
+	   ((double)eitems[ns-1].count)/(double)us);
 
-    ac_machine_t acm;
-    ac_build_machine(&acm, ptns, g_nr_patterns, 0);
-
-    uint32_t *hress = (uint32_t*)g4c_alloc_page_lock_mem(
-	sst.count*AC_ALPHABET_SIZE*sizeof(uint32_t));	
-
-    {
-	// CPU
-	timingval tv = timing_start();
-	for (int i=0; i<sst.count; i++) {
-	    char *str = sst.strs + i*sst.stride;
-	    ac_match(str, sst.lens[i], hress+i*AC_ALPHABET_SIZE, 0,
-		     &acm);
-	}
-	int64_t ctv = timing_stop(&tv);
-	printf("CPU size %dKB, time us %ld, rate %.3lfMB/s \n",
-	       (sst.tlen)>>10, ctv,
-	       ((double)(sst.tlen)/(double)ctv)
-	    );
+    tv = timing_start();    
+    for (int i=0; i<ns; i++) {
+	g4c_h2d_async(eitems[i].strs, eitems[i].devstrs,
+		      eitems[i].count*eitems[i].stride,
+		      eitems[i].stream);
+	g4c_gpu_acm_match((g4c_acm_t*)acm->devmem, eitems[i].count,
+			  eitems[i].devstrs, eitems[i].stride, 0, 0,
+			  eitems[i].devress, 1, 0,
+			  eitems[i].stream, 0);
+	g4c_d2h_async(eitems[i].devress, eitems[i].ress, eitems[i].count*sizeof(int),
+		      eitems[i].stream);    
     }
 
-    char *hstrs = (char*)g4c_alloc_page_lock_mem(sst.bufsz);
-    memcpy(hstrs, sst.buf, sst.bufsz);
-    char *dstrs = (char*)g4c_alloc_dev_mem(sst.bufsz);
-    int *dlens =  (int*)g4c_ptr_add(dstrs, sst.count*sst.stride);
-    uint32_t *dress = (uint32_t*)g4c_alloc_dev_mem(
-	sst.count*AC_ALPHABET_SIZE*sizeof(uint32_t));
+    for (int i=0; i<ns; i++)
+	g4c_stream_sync(eitems[i].stream);
+    us = timing_stop(&tv);
 
-#define NRSTREAMS 2
-    int streams[NRSTREAMS];
-    for (int i=0; i<NRSTREAMS; i++)
-	streams[i] = g4c_alloc_stream();
-    ac_dev_machine_t *pdacm = 0;
-    
-    ac_prepare_gmatch(&acm, &pdacm, streams[0]);
-    g4c_stream_sync(streams[0]);
-    
+    int ttlen = 0, tct=0;
+    for (int i=0; i<ns; i++) {
+	if (g_rand_lens)
+	    ttlen += eitems[i].tlen;
+	else
+	    ttlen += eitems[i].count*eitems[i].stride;
+	tct += eitems[i].count;
+    }
+
+    printf("Done benchmarking, time %9ld us, BW %12.6lf MB/s, rate %12.6lf Mpkt/s\n\n",
+	   us/ns, ((double)ttlen)/(double)us,((double)tct)/(double)us);    
+}
+
+void cpu_bench(g4c_acm_t *acm, eval_store *eitems, int ns)
+{
+    printf("CPU Bench:\n");
     timingval tv = timing_start();
-    for (int i=0; i<NRSTREAMS; i++) {
-	g4c_h2d_async(hstrs, dstrs, sst.bufsz, streams[i]);
-	ac_gmatch2(dstrs, sst.count, sst.stride, dlens,
-		   dress, pdacm, streams[i], g_acm_type);
-	g4c_d2h_async(dress, hress, sst.count*sizeof(int), streams[i]);
-	// ac_gmatch_finish(sst.count, dress, hress, streams[i]);
+    for (int b=0; b<ns; b++) {
+	for (int i=0; i<eitems[b].count; i++) {
+	    eitems[b].ress[i] =
+		g4c_cpu_acm_match(acm,
+				  eitems[b].strs + i*eitems[b].stride,
+				  eitems[b].lens[i]);
+	}
     }
-    for (int i=0; i<NRSTREAMS; i++)
-	g4c_stream_sync(streams[i]);    
-    int64_t usec = timing_stop(&tv)/NRSTREAMS;
-    
-    printf("GPU size %dKB, time us %ld, rate %.3lfMB/s \n",
-	   (sst.tlen)>>10, usec,
-	   ((double)(sst.tlen)/(double)usec)
-	);
+    int64_t us = timing_stop(&tv);
 
-    
-    free(ptns);
-    free(sst.buf);
-    g4c_free_host_mem(hress);
-    g4c_free_host_mem(hstrs);
-    g4c_free_dev_mem(dstrs);
-    g4c_free_dev_mem(dress);
-    for (int i=0; i<NRSTREAMS; i++)
-	g4c_free_stream(streams[i]);
-    ac_free_dev_acm(&pdacm);
-    
-    ac_release_machine(&acm);
+    for (int b=0; b<ns; b++)
+	memset(eitems[b].ress, 0, sizeof(int)*eitems[b].count);
+
+    int ttlen = 0, tct=0;
+    for (int i=0; i<ns; i++) {
+	if (g_rand_lens)
+	    ttlen += eitems[i].tlen;
+	else
+	    ttlen += eitems[i].count*eitems[i].stride;
+	
+	tct += eitems[i].count;
+    }
+
+    printf("Done benchmarking, time %9ld us, BW %12.6lf MB/s, rate %12.6lf Mpkt/s\n\n",
+	   us/ns, ((double)ttlen)/(double)us,((double)tct)/(double)us);    
 }
   
 int main(int argc, char *argv[])
 {
+    int mtype = 0;
+    int nrstream = 4;
+    int ptn_len = 16;
+    int str_len = 1024;
+    int nptns = 1024;
+    int npkts = 1024;
+
+    switch(argc) {
+    case 8:
+	g_rand_lens = atoi(argv[7])%2;
+    case 7:
+	mtype = atoi(argv[6])%2;
+    case 6:
+	nrstream = atoi(argv[5]);
+    case 5:
+	ptn_len = atoi(argv[4]);
+    case 4:
+	str_len = atoi(argv[3]);
+    case 3:
+	nptns = atoi(argv[2]);
+    case 2:
+	npkts = atoi(argv[1]);
+	break;
+    case 1:
+	break;
+    default:
+	printf("Usage: %s [npkts] [nptns] [str_len] [ptn_len] [nrstream] [mtype] [rand_lens]\n",
+	       argv[0]);
+        return 0;
+    }
+
     eval_init();
 
-    if(argc > 1)
-	g_acm_type = atoi(argv[1]);
-    if(argc > 2)
-	g_rand_lens = atoi(argv[2]);
+    printf("Eval AC: %d packets, %d patterns, %d max str len, %d max ptn len, %d streams\n",
+	   npkts, nptns, str_len, ptn_len, nrstream);
 
-    int nrs[] = { 1<<10, 1<<12, 1<<13, 1<<14};
-    int strides[] = { 32, 64, 128, 256 };
+    printf("Generating patterns... ");
+    char **ptns = gen_patterns(nptns, ptn_len);
+    if (!ptns) {
+	printf("Failed\n");
+	return 0;
+    } else
+	printf("Done\n");
 
-    printf("warm up test:\n");
-    do_eval(nrs[0], strides[0]);
-    cout<<endl;
-
-    for (int nr = 0; nr < sizeof(nrs)/sizeof(int); nr++) {
-	for (int stride = 0;
-	     stride < sizeof(strides)/sizeof(int); stride++) {
-	    do_eval(nrs[nr], strides[stride]);
-	    cout<<endl;
-	}
-    }
-
-    for (int nr = 0; nr < sizeof(nrs)/sizeof(int); nr++) {
-	for (int stride = 0;
-	     stride < sizeof(strides)/sizeof(int); stride++) {
-	    do_eval(nrs[nr]*10, strides[stride]);
-	    cout<<endl;
-	}
-    }
+    printf("Generating ACM... ");
+    int s = g4c_alloc_stream();
+    g4c_acm_t *acm = g4c_create_matcher(ptns, nptns, 1, s);
+    if (!acm) {
+	printf("Failed\n");
+	return 0;
+    } else
+	printf("Done\n");
     
-    g4c_exit();
+    eval_store *eval_items = new eval_store[nrstream];
+    if (!eval_items) {
+	fprintf(stderr, "Out of mem for evaluation item array\n");
+	return 0;
+    }
+
+    printf("Generating evaluation items... ");
+    for (int i=0; i<nrstream; i++) {
+	if (gen_eval_store(eval_items+i, str_len, npkts)) {
+	    printf("failed on %d\n", i);
+	    return 0;
+	}	    
+    }
+    printf("Done\n");
+
+    printf("Allocating streams... ");
+    eval_items[0].stream = s;
+    for (int i=1; i<nrstream; i++)
+	eval_items[i].stream = g4c_alloc_stream();
+    printf("Done\n");
+
+    gpu_bench(acm, eval_items, nrstream);
+    cpu_bench(acm, eval_items, nrstream);
+
+    gpu_bench(acm, eval_items, nrstream);
+    cpu_bench(acm, eval_items, nrstream);
+    
     return 0;
 }

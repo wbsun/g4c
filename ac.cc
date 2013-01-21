@@ -7,6 +7,7 @@
 
 #include <errno.h>
 #include "g4c.h"
+#include "g4c_ac.h"
 
 #include <cstdio>
 #include <vector>
@@ -14,6 +15,7 @@
 #include <set>
 #include <map>
 #include <iostream>
+#include <algorithm>
 
 using namespace std;
 
@@ -235,7 +237,7 @@ g4c_create_matcher(char **ptns, int nptns, int withdev, int stream)
     }
 
     if (withdev) {
-	g4c_h2c_async(acm->mem, acm->devmem, acm->memsz, stream);
+	g4c_h2d_async(acm->mem, acm->devmem, acm->memsz, stream);
 	g4c_stream_sync(stream);	
     }
 

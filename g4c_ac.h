@@ -82,7 +82,7 @@ extern "C" {
 	int *transitions;
 	int *outputs;
 
-	int *dtranstions;
+	int *dtransitions;
 	int *doutputs;
     } g4c_acm_t;
 
@@ -96,7 +96,7 @@ extern "C" {
     ((int*)((acm)->doutputs + (id)))
 
     g4c_acm_t *g4c_create_matcher(
-	char **ptns, in nptns, int withdev, int stream);
+	char **ptns, int nptns, int withdev, int stream);
 
     // Result values: 0 no match; pos-num, rule idx + 1.
     int g4c_gpu_acm_match(

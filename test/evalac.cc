@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
 			      eval_items[i].devstrs,
 			      eval_items[i].stride, 0, 0,
 			      eval_items[i].devress, 1, 0,
-			      eval_items[i].stream, 0);
+			      eval_items[i].stream, mtype);
 	    g4c_d2h_async(eval_items[i].devress,
 			  eval_items[i].ress,
 			  nrpkts[b]*sizeof(int),

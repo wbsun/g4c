@@ -5,7 +5,7 @@ CXX          = g++
 NVCC         = nvcc
 CXXFLAGS     = -O2
 CXXLIBFLAGS  = -fPIC
-NVCCFLAGS    = -arch=sm_20 -O2
+NVCCFLAGS    = -arch=sm_20 -O3
 NVCCLIBFLAGS = --shared --compiler-options '-fPIC'
 
 MMSRCS   = mm.cc

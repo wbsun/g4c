@@ -36,6 +36,7 @@ extern "C" {
         int32_t dst_port;
         int16_t proto;      // negative means no such field.
         int idx;
+        int action;
     } g4c_pattern_t;
 
 #define G4C_CL_RES_SZ_ALIGN 4
@@ -81,7 +82,10 @@ extern "C" {
         uint32_t *dev_daddr_ress;
         uint32_t *dev_sp_ress;
         uint32_t *dev_dp_ress;
-        uint32_t *dev_pt_ress;        
+        uint32_t *dev_pt_ress;
+
+        int *actions;
+        int *dev_actions;
     } g4c_classifier_t;
 
     void g4c_cl_init(int n, char *keys, int *values);
